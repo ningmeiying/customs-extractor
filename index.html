@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>报关底单/退税联提取工具</title>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<style>
+  :root{
+    --bg:#f5f7fa; --card:#ffffff; --border:#e2e8f0; --text:#1e293b;
+    --muted:#64748b; --primary:#2563eb; --primary-dark:#1d4ed8;
+    --green:#16a34a; --green-bg:#f0fdf4; --yellow:#d97706; --yellow-bg:#fffbeb;
+    --red:#dc2626; --red-bg:#fef2f2;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+    background:var(--bg); color:var(--text); line-height:1.6; padding:24px;
+  }
+  .wrap{max-width:1200px; margin:0 auto;}
+  header{margin-bottom:20px;}
+  header h1{font-size:22px; display:flex; align-items:center; gap:10px;}
+  header h1 .logo{
+    width:36px;height:36px;border-radius:8px;background:var(--primary);
+    display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:700;
+  }
+  header p{color:var(--muted); font-size:13px; margin-top:4px;}
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:20px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,.04);
+  }
+  .card h2{font-size:15px; margin-bottom:14px; display:flex; align-items:center; gap:8px;}
+  .step-badge{
+    width:22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;
+    font-size:12px;display:inline-flex;align-items:center;justify-content:center;flex:none;
+  }
+  /* 字段设置 */
+  .preset-row{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px;}
+  select,input[type=text]{
+    border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:13px;
+    background:#fff; color:var(--text); outline:none;
+  }
+  select:focus,input:focus{border-color:var(--primary); box-shadow:0 0 0 3px rgba(37,99,235,.1);}
+  .field-table{width:100%; border-collapse:collapse; font-size:13px;}
+  .field-table th{
+    text-align:left; padding:6px 8px; color:var(--muted); font-weight:600;
+    border-bottom:1px solid var(--border); font-size:12px;
+  }
+  .field-table td{padding:6px 8px; border-bottom:1px solid #f1f5f9;}
+  .field-table input{width:100%;}
+  .field-table .del{
+    background:none;border:none;color:var(--red);cursor:pointer;font-size:15px;padding:4px 8px;border-radius:6px;
+  }
+  .field-table .del:hover{background:var(--red-bg);}
+  /* 字段选项 */
+  .option-group{margin-top:12px;}
+  .group-title{font-size:12px; color:var(--muted); font-weight:600; margin-bottom:8px;}
+  .option-grid{display:flex; flex-wrap:wrap; gap:8px;}
+  .opt{
+    display:inline-flex; align-items:center; gap:6px; cursor:pointer;
+    border:1px solid var(--border); border-radius:8px; padding:7px 12px;
+    font-size:13px; background:#fff; transition:.15s; user-select:none;
+  }
+  .opt:hover{border-color:var(--primary); background:#f0f6ff;}
+  .opt input{accent-color:var(--primary); cursor:pointer; margin:0;}
+  .opt input:checked + span{color:var(--primary); font-weight:600;}
+  .btn{
+    border:none; border-radius:8px; padding:9px 18px; font-size:14px; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px; transition:.15s; font-family:inherit;
+  }
+  .btn-primary{background:var(--primary); color:#fff;}
+  .btn-primary:hover{background:var(--primary-dark);}
+  .btn-primary:disabled{background:#94a3b8; cursor:not-allowed;}
+  .btn-outline{background:#fff; color:var(--primary); border:1px solid var(--primary);}
+  .btn-outline:hover{background:#eff6ff;}
+  .btn-ghost{background:#fff; color:var(--muted); border:1px solid var(--border);}
+  .btn-ghost:hover{background:#f8fafc; color:var(--text);}
+  .hint{font-size:12px; color:var(--muted); margin-top:8px;}
+  .hint code{background:#f1f5f9; padding:1px 5px; border-radius:4px; font-size:11px; color:#475569;}
+  /* 上传区 */
+  .dropzone{
+    border:2px dashed var(--border); border-radius:12px; padding:36px 20px; text-align:center;
+    color:var(--muted); cursor:pointer; transition:.2s; background:#fafbfd;
+  }
+  .dropzone:hover,.dropzone.drag{border-color:var(--primary); background:#eff6ff; color:var(--primary);}
+  .dropzone .icon{font-size:32px; margin-bottom:8px;}
+  .file-list{margin-top:12px; display:flex; flex-wrap:wrap; gap:8px;}
+  .file-chip{
+    background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; border-radius:16px;
+    padding:3px 10px 3px 10px; font-size:12px; display:inline-flex; align-items:center; gap:6px; max-width:280px;
+  }
+  .file-chip span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .file-chip .x{cursor:pointer; font-weight:700; color:var(--muted);}
+  .file-chip .x:hover{color:var(--red);}
+  /* 进度 */
+  .progress-wrap{display:none; margin-top:14px;}
+  .progress-bar{height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden;}
+  .progress-bar>div{height:100%; background:var(--primary); width:0%; transition:.2s;}
+  .progress-text{font-size:12px; color:var(--muted); margin-top:6px;}
+  /* 结果表 */
+  .result-table{width:100%; border-collapse:collapse; font-size:13px;}
+  .result-table th{
+    background:#f8fafc; padding:9px 10px; text-align:left; font-weight:600;
+    border:1px solid var(--border); position:sticky; top:0; white-space:nowrap;
+  }
+  .result-table td{padding:8px 10px; border:1px solid var(--border); vertical-align:top;}
+  /* 一个商品一行的多值字段（如「商品英文名称/HS编码」）：保留换行 */
+  .result-table td.multi{white-space:pre-line; min-width:220px; line-height:1.7;}
+  .result-table tr.ok td{background:var(--green-bg);}
+  .result-table tr.warn td{background:var(--yellow-bg);}
+  .result-table tr.err td{background:var(--red-bg);}
+  .result-table .miss{color:var(--yellow); font-style:italic;}
+  .result-table .errcell{color:var(--red);}
+  .table-scroll{max-height:480px; overflow:auto; border:1px solid var(--border); border-radius:8px;}
+  .actions{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+  .stat{font-size:13px; color:var(--muted);}
+  .stat b{color:var(--text);}
+  .empty-tip{text-align:center; color:var(--muted); padding:30px; font-size:13px;}
+  .toast{
+    position:fixed; top:20px; right:20px; background:#1e293b; color:#fff; padding:10px 18px;
+    border-radius:8px; font-size:13px; opacity:0; pointer-events:none; transition:.3s; z-index:99;
+  }
+  .toast.show{opacity:1;}
+  .loading-overlay{
+    display:none; position:fixed; inset:0; background:rgba(255,255,255,.7); z-index:98;
+    align-items:center; justify-content:center; flex-direction:column; gap:12px;
+  }
+  .loading-overlay.show{display:flex;}
+  .spinner{
+    width:36px;height:36px;border:3px solid #e2e8f0;border-top-color:var(--primary);
+    border-radius:50%;animation:spin .8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .regex-mode{font-size:12px; color:var(--muted); margin-left:4px;}
+  .mode-tabs{display:flex; gap:0; margin-bottom:14px; border-bottom:2px solid var(--border);}
+  .mode-tab{
+    padding:10px 20px; border:none; background:none; cursor:pointer; font-size:14px;
+    color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-2px; transition:.15s;
+    font-family:inherit;
+  }
+  .mode-tab:hover{color:var(--primary);}
+  .mode-tab.active{color:var(--primary); border-bottom-color:var(--primary); font-weight:600;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="logo">PDF</span>报关底单/退税联提取工具</h1>
+    <p>选择提取模式 → 上传 PDF / ZIP / RAR 自动提取 → 导出 Excel（全部在本地浏览器完成，文件不上传服务器，仅识别第一页）</p>
+    <p style="margin-top:6px;color:var(--yellow);font-weight:600;">⚠ 当前版本仅支持含文字层的 PDF；图片扫描件/纯图片版 PDF 无法识别（提取时会标记失败）。</p>
+  </header>
+
+  <!-- 第一步：字段设置 -->
+  <div class="card">
+    <h2><span class="step-badge">1</span>选择提取模式与字段</h2>
+    <div class="mode-tabs">
+      <button class="mode-tab active" data-mode="customs">报关底单提取</button>
+      <button class="mode-tab" data-mode="refund">退税联提取</button>
+    </div>
+    <div class="option-group">
+      <div class="group-title">提取字段（可勾选/取消）</div>
+      <div class="option-grid" id="optFields"></div>
+      <p class="hint">「商品英文名称/HS编码」按项号输出，格式：<code>英文名/HS:商品编号</code>（如 Gas Leak Detector/HS:9027100090），<strong>每个商品编号占一行</strong>（换行分隔）。</p>
+      <label class="opt" style="margin-top:6px;">
+        <input type="checkbox" id="dedupeGoodsChk" checked>
+        <span>重复项只输出一次（商品名称 + 商品编号都相同则合并）</span>
+      </label>
+    </div>
+    <div class="option-group" style="margin-top:12px;">
+      <div class="group-title">品名中英对照表（报关单为中文品名时按本表输出英文）</div>
+      <textarea id="nameMapInput" rows="6" spellcheck="false" style="width:100%;font-size:12px;line-height:1.6;border:1px solid #d0d7de;border-radius:8px;padding:8px 10px;resize:vertical;font-family:inherit;color:#1f2328;"
+        placeholder="每行一条：中文品名=英文品名"></textarea>
+      <div class="preset-row" style="margin-top:8px;">
+        <button class="btn btn-ghost" id="importNameMapBtn">⬆ 导入 Excel / CSV</button>
+        <button class="btn btn-ghost" id="resetNameMapBtn">恢复预置表</button>
+        <input type="file" id="nameMapFile" accept=".xlsx,.xls,.csv,.txt" style="display:none">
+        <span id="nameMapCount" style="font-size:12px;color:#64748b;align-self:center;"></span>
+      </div>
+      <p class="hint">支持直接从 Excel 复制「中文品名 / 英文品名」两列粘贴进来（Tab 分隔也能识别）；匹配不到的品名输出报关单原文。对照表保存在本机浏览器，下次打开还在。</p>
+    </div>
+    <div class="preset-row" style="margin-top:14px;">
+      <button class="btn btn-ghost" id="selectAllBtn">全选</button>
+      <button class="btn btn-ghost" id="clearAllBtn">清空</button>
+      <button class="btn btn-ghost" id="addFieldBtn">＋ 自定义字段</button>
+    </div>
+    <table class="field-table" id="customFieldTable" style="display:none;">
+      <thead><tr><th style="width:160px;">字段名（Excel 列名）</th><th>提取规则（正则表达式，含捕获组取第一个）</th><th style="width:50px;"></th></tr></thead>
+      <tbody id="fieldRows"></tbody>
+    </table>
+    <p class="hint">
+      选择对应模式后勾选需要的字段，上传 PDF 即自动提取。<b>报关底单提取</b>适用于海关报关单底单；<b>退税联提取</b>适用于出口退税专用联。
+    </p>
+  </div>
+
+  <!-- 第二步：上传 -->
+  <div class="card">
+    <h2><span class="step-badge">2</span>上传文件（PDF / ZIP / RAR）</h2>
+    <div class="dropzone" id="dropzone">
+      <div class="icon">📄</div>
+      <div><b>点击选择</b> 或拖拽 PDF / ZIP / RAR 文件到此处（支持多选）</div>
+      <div style="font-size:12px; margin-top:4px;">支持 .pdf、.zip、.rar 格式；压缩包会自动解压，提取其中的 PDF</div>
+    </div>
+    <input type="file" id="fileInput" multiple accept=".pdf,.zip,.rar" style="display:none;">
+    <div class="file-list" id="fileList"></div>
+    <div style="margin-top:16px;" class="actions">
+      <button class="btn btn-ghost" id="extractBtn" disabled>重新提取</button>
+      <button class="btn btn-ghost" id="clearFilesBtn" disabled>清空文件</button>
+      <span class="stat" id="fileStat">尚未选择文件（选择后自动提取）</span>
+    </div>
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar"><div id="progressBar"></div></div>
+      <div class="progress-text" id="progressText"></div>
+    </div>
+  </div>
+
+  <!-- 第三步：结果 -->
+  <div class="card" id="resultCard" style="display:none;">
+    <h2><span class="step-badge">3</span>提取结果</h2>
+    <div class="actions" style="margin-bottom:14px;">
+      <button class="btn btn-primary" id="exportBtn">⬇ 导出 Excel（.xlsx）</button>
+      <span class="stat" id="resultStat"></span>
+    </div>
+    <div class="table-scroll">
+      <table class="result-table" id="resultTable"></table>
+    </div>
+    <p class="hint">颜色说明：<span style="color:var(--green);font-weight:600;">绿色</span> = 字段全部提取成功；<span style="color:var(--yellow);font-weight:600;">黄色</span> = 有字段未找到或部分缺失；<span style="color:var(--red);font-weight:600;">红色</span> = 无法提取文本（该 PDF 可能是扫描件/图片版，无文字层）。</p>
+  </div>
+</div>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div style="font-size:14px; color:var(--muted);" id="loadingText">正在导出 Excel…</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+
+/* ---------------- 字段配置 ---------------- */
+const fieldRowsEl = document.getElementById('fieldRows');
+const customFieldTable = document.getElementById('customFieldTable');
+
+// 双模式字段定义
+const FIELD_SETS = {
+  customs: [
+    '海关编号','境内发货人','境外收货人','运输工具及航次号','提运单号','监管方式',
+    '征免性质','合同协议号','贸易国','运抵国','指运港','离境口岸',
+    '件数','毛重','净重','商品英文名称/HS编码','成交方式','申报单位'
+  ],
+  refund: [
+    '出口口岸','出口日期','申报日期','境内收发货人','运输工具名称','提运单号',
+    '运抵国','指运港','成交方式','合同协议号','件数','毛重','净重','集装箱号','生产销售单位'
+  ]
+};
+let currentMode = 'customs';
+
+/* ------- 「商品英文名称/HS编码」去重开关：名称+编码都相同只输出一次 ------- */
+const DEDUPE_KEY = 'dedupeGoodsV1';
+let dedupeGoods = true;
+const dedupeChk = document.getElementById('dedupeGoodsChk');
+if (dedupeChk){
+  try { const s = localStorage.getItem(DEDUPE_KEY); if (s !== null) dedupeGoods = (s === '1'); } catch(e){}
+  dedupeChk.checked = dedupeGoods;
+  dedupeChk.addEventListener('change', () => {
+    dedupeGoods = dedupeChk.checked;
+    try { localStorage.setItem(DEDUPE_KEY, dedupeGoods ? '1' : '0'); } catch(e){}
+    if (typeof toast === 'function' && typeof results !== 'undefined' && results.length) toast('开关已保存，重新提取后生效');
+  });
+}
+
+/* ------- 品名中英对照表：报关单品名多为中文，按对照表输出英文 ------- */
+// V2：预置表来自「英文品名.xlsx」完整清单（24 条），key 升级避免旧缓存覆盖
+const NAME_MAP_KEY = 'goodsNameMapV2';
+const DEFAULT_NAME_MAP = [
+  '测温仪=THERMAL IMAGE CAMERA',
+  '测电笔=voltage tester pen',
+  '木材水分仪=Wood Moisture Meter',
+  '测氡仪=Radon Detector',
+  '高斯计=Gauss Meter',
+  '辐射探测器=Radiation Detector',
+  '噪音计=Sound Level Meter',
+  '可燃气体监测仪=Gas Leak Detector',
+  '四合一气体检测仪=4 IN 1 Gas Detector',
+  '氧气气体检测仪=Oxygen Detector',
+  '核辐射检测仪=Geigjer Counter',
+  '一氧化碳检测仪=Carbon Monoxide Detector',
+  '可燃气体检漏仪=Gas Leak Detector',
+  '氨气检测仪=AMMONIA GAS DETECTOR',
+  '万用表=Multimeter',
+  '电缆测试仪=NETWORK CABLE TESTER',
+  '水平仪=Laser Level',
+  '接收器=RECEIVER',
+  '测距仪=LASER DISTANCE METER',
+  '糖度仪=Brix Refractometer',
+  '冷媒检漏仪=Refrigerant Leak Detector',
+  '光度计=Light Meter',
+  '风速计=Anemometer'
+].join('\n');
+const CJK_RE = /[\u4e00-\u9fa5]/;
+// 一行拆成左右两段：支持 "中文=英文"、Excel 复制的 Tab 分隔、逗号分隔
+function splitMapLine(line){
+  const s = String(line || '').replace(/\u00a0/g, ' ').trim();
+  if (!s) return null;
+  let i = s.search(/[=＝\t]/);
+  if (i <= 0) i = s.search(/[,，;；]/);
+  if (i <= 0) return null;
+  let a = s.slice(0, i).trim(), b = s.slice(i + 1).trim();
+  if (!a || !b) return null;
+  // 表格里偶有填反的行（英文在前、中文在后），统一成 中文=英文
+  if (!CJK_RE.test(a) && CJK_RE.test(b)){ const t = a; a = b; b = t; }
+  return [a, b];
+}
+function parseNameMap(){
+  let txt = '';
+  try { txt = localStorage.getItem(NAME_MAP_KEY) || ''; } catch(e){}
+  if (!txt) txt = DEFAULT_NAME_MAP;
+  const map = {};
+  txt.split(/\r?\n/).forEach(line => {
+    const kv = splitMapLine(line);
+    if (kv) map[kv[0]] = kv[1];
+  });
+  return map;
+}
+// 精确匹配优先；其次按包含关系匹配，长词优先（"四合一气体检测仪" 不会被 "气体检测仪" 抢走）
+function lookupEnName(cn){
+  if (!cn) return '';
+  const map = parseNameMap();
+  const clean = String(cn).replace(/\s+/g, '').trim();
+  if (map[cn]) return map[cn];
+  if (map[clean]) return map[clean];
+  const keys = Object.keys(map).sort((a, b) => b.length - a.length);
+  const hit = keys.find(k => clean.indexOf(k) >= 0);
+  if (hit) return map[hit];
+  // 反向：报关单品名比对照表短（如品名"气体检测仪"，表里是"四合一气体检测仪"）
+  const hit2 = keys.find(k => k.indexOf(clean) >= 0);
+  return hit2 ? map[hit2] : '';
+}
+const nameMapEl = document.getElementById('nameMapInput');
+const nameMapCountEl = document.getElementById('nameMapCount');
+function refreshNameMapCount(){
+  if (!nameMapCountEl) return;
+  const n = Object.keys(parseNameMap()).length;
+  nameMapCountEl.textContent = `已生效 ${n} 条`;
+}
+if (nameMapEl){
+  try { nameMapEl.value = localStorage.getItem(NAME_MAP_KEY) || DEFAULT_NAME_MAP; } catch(e){ nameMapEl.value = DEFAULT_NAME_MAP; }
+  nameMapEl.addEventListener('input', () => {
+    try { localStorage.setItem(NAME_MAP_KEY, nameMapEl.value); } catch(e){}
+    refreshNameMapCount();
+  });
+  refreshNameMapCount();
+}
+// 导入 Excel/CSV：读取每行前两列，自动识别中文/英文列，统一成 "中文=英文"
+function rowsToNameMap(rows){
+  const lines = [];
+  rows.forEach(r => {
+    if (!r) return;
+    const cells = r.map(c => (c === null || c === undefined) ? '' : String(c).trim()).filter(c => c !== '');
+    if (cells.length < 2) return;
+    // 跳过表头行（中文品名 / 英文品名 / 品类 等）
+    if (/^(中文|中文品名|中文名称|品名|名称)$/.test(cells[0]) || /^(英文|英文品名|英文名称|english|description)$/i.test(cells[1])) return;
+    const kv = splitMapLine(cells[0] + '\t' + cells[1]);
+    if (kv) lines.push(kv[0] + '=' + kv[1]);
+  });
+  // 去重（同一中文名保留最后一次）
+  const map = {};
+  lines.forEach(l => { const i = l.indexOf('='); map[l.slice(0, i)] = l.slice(i + 1); });
+  return Object.keys(map).map(k => k + '=' + map[k]);
+}
+async function readNameMapFile(file){
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.csv') || name.endsWith('.txt')){
+    const txt = await file.text();
+    return rowsToNameMap(txt.split(/\r?\n/).map(l => l.split(/\t|,|，|;/)));
+  }
+  if (typeof ExcelJS === 'undefined') throw new Error('Excel 解析库未加载，请检查网络后重试，或把表格另存为 CSV 导入');
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(await file.arrayBuffer());
+  const out = [];
+  wb.eachSheet(ws => {
+    const rows = [];
+    ws.eachRow(row => {
+      const vals = row.values; // ExcelJS 的 values 下标从 1 开始
+      rows.push([vals[1], vals[2]]);
+    });
+    out.push(...rowsToNameMap(rows));
+  });
+  return out;
+}
+const importBtn = document.getElementById('importNameMapBtn');
+const nameMapFileEl = document.getElementById('nameMapFile');
+if (importBtn && nameMapFileEl && nameMapEl){
+  importBtn.addEventListener('click', () => nameMapFileEl.click());
+  nameMapFileEl.addEventListener('change', async () => {
+    const file = nameMapFileEl.files && nameMapFileEl.files[0];
+    nameMapFileEl.value = '';
+    if (!file) return;
+    try {
+      const lines = await readNameMapFile(file);
+      if (!lines.length) return alert('没读到有效的中英对照行，请确认表格前两列是「中文品名 / 英文品名」。');
+      nameMapEl.value = lines.join('\n');
+      try { localStorage.setItem(NAME_MAP_KEY, nameMapEl.value); } catch(e){}
+      refreshNameMapCount();
+      alert(`已导入 ${lines.length} 条品名对照`);
+    } catch(err){
+      alert('导入失败：' + (err && err.message ? err.message : err));
+    }
+  });
+}
+const resetMapBtn = document.getElementById('resetNameMapBtn');
+if (resetMapBtn && nameMapEl){
+  resetMapBtn.addEventListener('click', () => {
+    if (!confirm('恢复为预置的品名对照表？当前编辑的内容会被覆盖。')) return;
+    nameMapEl.value = DEFAULT_NAME_MAP;
+    try { localStorage.setItem(NAME_MAP_KEY, DEFAULT_NAME_MAP); } catch(e){}
+    refreshNameMapCount();
+  });
+}
+
+const optFieldsEl = document.getElementById('optFields');
+function renderFieldOptions(){
+  optFieldsEl.innerHTML = '';
+  FIELD_SETS[currentMode].forEach(name => {
+    const label = document.createElement('label');
+    label.className = 'opt';
+    label.innerHTML = `<input type="checkbox" value="${escapeAttr(name)}" checked><span>${escapeHtml(name)}</span>`;
+    optFieldsEl.appendChild(label);
+  });
+}
+renderFieldOptions();
+
+// 模式切换
+document.querySelectorAll('.mode-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentMode = tab.dataset.mode;
+    renderFieldOptions();
+  });
+});
+
+function allOptCheckboxes(){ return [...optFieldsEl.querySelectorAll('input[type="checkbox"]')]; }
+
+function addFieldRow(name = '', regex = ''){
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" class="f-name" value="${escapeAttr(name)}" placeholder="字段名，如 集装箱号"></td>
+    <td><input type="text" class="f-regex" value="${escapeAttr(regex)}" placeholder="正则表达式，如 ([A-Z]{4}\\d{7})"></td>
+    <td><button class="del" title="删除">✕</button></td>`;
+  tr.querySelector('.del').addEventListener('click', () => {
+    tr.remove();
+    if (!fieldRowsEl.children.length) customFieldTable.style.display = 'none';
+  });
+  fieldRowsEl.appendChild(tr);
+  customFieldTable.style.display = '';
+}
+function escapeAttr(s){ return String(s).replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+document.getElementById('addFieldBtn').addEventListener('click', () => addFieldRow());
+document.getElementById('selectAllBtn').addEventListener('click', () => {
+  allOptCheckboxes().forEach(cb => cb.checked = true);
+});
+document.getElementById('clearAllBtn').addEventListener('click', () => {
+  allOptCheckboxes().forEach(cb => cb.checked = false);
+});
+
+function getFields(){
+  // 勾选的内置字段（保持选项展示顺序）
+  const selected = allOptCheckboxes().filter(cb => cb.checked).map(cb => ({name: cb.value, regex: ''}));
+  // 自定义字段（正则）
+  const custom = [...fieldRowsEl.querySelectorAll('tr')].map(tr => ({
+    name: tr.querySelector('.f-name').value.trim(),
+    regex: tr.querySelector('.f-regex').value.trim()
+  })).filter(f => f.name);
+  return selected.concat(custom);
+}
+
+/* ---------------- 文件上传 ---------------- */
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const fileListEl = document.getElementById('fileList');
+const fileStatEl = document.getElementById('fileStat');
+const extractBtn = document.getElementById('extractBtn');
+let pdfFiles = []; // {file, name}
+
+dropzone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault(); dropzone.classList.remove('drag');
+  addFiles(e.dataTransfer.files);
+});
+
+function addFiles(fileList){
+  const arr = [...fileList];
+  const pdfs = arr.filter(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+  const archives = arr.filter(f => /\.(zip|rar|7z)$/i.test(f.name) ||
+    ['application/zip','application/x-zip-compressed','application/vnd.rar','application/x-rar-compressed','application/x-7z-compressed'].includes(f.type));
+  const skipped = arr.length - pdfs.length - archives.length;
+  pdfs.forEach(f => { if (!pdfFiles.some(p => p.name === f.name)) pdfFiles.push({file: f, name: f.name}); });
+  renderFileList();
+  if (skipped > 0) toast(`已跳过 ${skipped} 个不支持的文件`);
+  if (archives.length > 0){
+    // 异步解压压缩包，完成后统一触发自动提取
+    handleArchives(archives).finally(() => {
+      renderFileList();
+      if (pdfFiles.length > 0) doExtract();
+    });
+    return;
+  }
+  // 自动提取
+  if (pdfFiles.length > 0) doExtract();
+}
+
+/* ---------------- 压缩包（ZIP/RAR/7Z）解压支持 ---------------- */
+// libarchive.js 在 Worker 中运行；Worker 脚本不能跨域直接加载，
+// 这里取回 worker-bundle.js 文本并把 WASM 相对路径补丁为 CDN 绝对地址后用 blob URL 启动
+let _libarchivePromise = null;
+function loadLibarchive(){
+  if (_libarchivePromise) return _libarchivePromise;
+  _libarchivePromise = (async () => {
+    const CDN = 'https://cdn.jsdelivr.net/npm/libarchive.js@2.0.2/dist/';
+    const res = await fetch(CDN + 'worker-bundle.js');
+    if (!res.ok) throw new Error('worker-bundle.js 下载失败（HTTP ' + res.status + '）');
+    let code = await res.text();
+    const patched = code.replace(
+      /new URL\((['"])libarchive\.wasm\1\s*,\s*import\.meta\.url\)\.href/g,
+      JSON.stringify(CDN + 'libarchive.wasm')
+    );
+    if (patched === code) throw new Error('worker-bundle 版本不兼容（WASM 路径补丁失败）');
+    const workerUrl = URL.createObjectURL(new Blob([patched], {type: 'text/javascript'}));
+    const mod = await import(CDN + 'libarchive.js');
+    mod.Archive.init({ getWorker: () => new Worker(workerUrl, {type: 'module'}) });
+    return mod.Archive;
+  })().catch(e => {
+    _libarchivePromise = null; // 失败允许重试
+    throw e;
+  });
+  return _libarchivePromise;
+}
+
+function collectPdfFiles(node, out){
+  Object.values(node || {}).forEach(v => {
+    if (typeof File !== 'undefined' && v instanceof File){
+      if (/\.pdf$/i.test(v.name)) out.push(v);
+    } else if (v && typeof v === 'object' && !(v instanceof Blob)){
+      collectPdfFiles(v, out); // 子目录，递归
+    }
+  });
+}
+
+async function handleArchives(archives){
+  let Archive;
+  try {
+    Archive = await loadLibarchive();
+  } catch(e){
+    toast('压缩包组件加载失败：' + (e.message || e));
+    return;
+  }
+  for (let i = 0; i < archives.length; i++){
+    const a = archives[i];
+    fileStatEl.innerHTML = `正在解压 (${i+1}/${archives.length})：<b>${escapeHtml(a.name)}</b>…（首次使用需下载约 1MB 组件）`;
+    try {
+      const archive = await Archive.open(a);
+      const tree = await archive.extractFiles();
+      const out = [];
+      collectPdfFiles(tree, out);
+      let added = 0;
+      out.forEach(f => {
+        if (!pdfFiles.some(p => p.name === f.name)){ pdfFiles.push({file: f, name: f.name}); added++; }
+      });
+      renderFileList();
+      if (out.length === 0) toast(`压缩包 ${a.name} 中没有 PDF 文件`);
+      else toast(`${a.name}：解压出 ${out.length} 个 PDF（新增 ${added} 个）`);
+    } catch(e){
+      toast(`压缩包 ${a.name} 解压失败：` + (e.message || e));
+    }
+  }
+  fileStatEl.innerHTML = pdfFiles.length ? `已选择 <b>${pdfFiles.length}</b> 个 PDF 文件` : '尚未选择文件';
+}
+function renderFileList(){
+  fileListEl.innerHTML = '';
+  pdfFiles.forEach((p, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'file-chip';
+    chip.innerHTML = `<span title="${escapeAttr(p.name)}">${escapeHtml(p.name)}</span><span class="x">✕</span>`;
+    chip.querySelector('.x').addEventListener('click', () => { pdfFiles.splice(i,1); renderFileList(); });
+    fileListEl.appendChild(chip);
+  });
+  fileStatEl.innerHTML = pdfFiles.length ? `已选择 <b>${pdfFiles.length}</b> 个 PDF 文件` : '尚未选择文件';
+  extractBtn.disabled = pdfFiles.length === 0;
+  clearFilesBtn.disabled = pdfFiles.length === 0;
+}
+function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ---------------- PDF 文本提取 ---------------- */
+async function extractPdfText(file){
+  const buf = await file.arrayBuffer();
+  // cMapUrl：解决部分 PDF 使用未内嵌中文字体（如 SimSun/UniGB-UTF16-H）时文本丢失的问题
+  const pdf = await pdfjsLib.getDocument({
+    data: buf,
+    cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+    cMapPacked: true
+  }).promise;
+  const allLines = [];
+  const allRows = []; // 结构化行：{y, parts:[{x, s}]}，用于表格格子对齐提取
+  const rowsByPage = []; // 逐页结构化行：商品表可能跨页，供商品项提取使用
+  // 文本层：只取第一页（避免同一 PDF 里后续单据如退税联/发票干扰其他字段）
+  const page = await pdf.getPage(1);
+  const viewport = page.getViewport({scale: 1});
+  const tc = await page.getTextContent();
+  const pageRows = [];
+  tc.items.forEach(it => {
+    if (!it.str || !it.str.trim()) return;
+    const tx = pdfjsLib.Util.transform(viewport.transform, it.transform);
+    const x = tx[4], y = tx[5];
+    let row = pageRows.find(r => Math.abs(r.y - y) < 3.5);
+    if (!row){ row = {y, parts: []}; pageRows.push(row); }
+    row.parts.push({x, s: it.str});
+  });
+  pageRows.sort((a,b) => a.y - b.y);
+  pageRows.forEach(r => {
+    const parts = r.parts.sort((a,b)=>a.x-b.x);
+    allRows.push({y: r.y, parts});
+    allLines.push(parts.map(p2=>p2.s).join(' ').replace(/\s+/g,' ').trim());
+  });
+  // 商品表跨页：额外逐页构建结构化行（最多 6 页，够覆盖报关单+退税联）
+  for (let p = 1; p <= Math.min(pdf.numPages, 6); p++){
+    const pg = await pdf.getPage(p);
+    const vp = pg.getViewport({scale: 1});
+    const t = await pg.getTextContent();
+    const prs = [];
+    t.items.forEach(it => {
+      if (!it.str || !it.str.trim()) return;
+      const tx = pdfjsLib.Util.transform(vp.transform, it.transform);
+      const x = tx[4], y = tx[5];
+      let row = prs.find(r => Math.abs(r.y - y) < 3.5);
+      if (!row){ row = {y, parts: []}; prs.push(row); }
+      row.parts.push({x, s: it.str});
+    });
+    prs.sort((a,b) => a.y - b.y);
+    rowsByPage.push(prs.map(r => ({y: r.y, parts: r.parts.sort((a,b)=>a.x-b.x)})));
+  }
+  return {
+    text: allLines.join('\n'),
+    lines: allLines.filter(l=>l!==''),
+    rows: allRows,
+    rowsByPage,
+    numPages: pdf.numPages
+  };
+}
+
+/* ---------------- 字段提取逻辑 ---------------- */
+function detectDocType(text){
+  const t = text.toUpperCase();
+  if (/BILL OF LADING|B\/L\s*NO|OCEAN\s*BILL|船东单|货代提单/.test(t) || /CTNS?\b/.test(t)) return 'bol';
+  if (/件数|毛重.*千克|海关编号|中华人民共和国海关/.test(text)) return 'customs';
+  return 'unknown';
+}
+
+function extractDocNo(text){
+  let m = text.match(/海关编号[：:]\s*(\d+)/);
+  if (m) return m[1];
+  m = text.match(/B\/L\s*NO\.?\s*[：:\s]*([A-Z0-9\/\-]+)/i);
+  if (m) return m[1];
+  m = text.match(/提单号[：:]\s*(\S+)/);
+  if (m) return m[1];
+  return '';
+}
+
+// 报关底单：表头定位 + 数据行取数
+function customsHeaderExtract(lines){
+  let headerIdx = -1;
+  for (let i = 0; i < lines.length; i++){
+    if (/件数/.test(lines[i]) && /毛重/.test(lines[i]) && /千克|KG/i.test(lines[i])){
+      headerIdx = i; break;
+    }
+  }
+  if (headerIdx === -1) return null;
+  for (let j = headerIdx + 1; j < Math.min(headerIdx + 6, lines.length); j++){
+    const nums = lines[j].match(/\d+(?:\.\d+)?/g);
+    if (!nums || nums.length < 2) continue;
+    const ints = nums.filter(n => !n.includes('.'));
+    const decs = nums.filter(n => n.includes('.'));
+    if (ints.length >= 1 && decs.length >= 1){
+      return {件数: ints[0], 毛重: decs[0] || '', 净重: decs[1] || ''};
+    }
+  }
+  return null;
+}
+
+function applyRegex(text, regexStr){
+  let re;
+  try { re = new RegExp(regexStr, 'im'); } catch(e){ return {error: '正则无效'}; }
+  const m = text.match(re);
+  if (!m) return {value: ''};
+  return {value: m[1] !== undefined ? m[1] : m[0]};
+}
+
+/* ------- 商品英文名称/HS编码：从商品表提取"英文名/HS:编码"，每个商品编号一行（换行分隔） ------- */
+// 规则：定位表头"商品名称及规格型号"与"数量及单位"两列，按项号分组，每组输出 "商品英文名/HS:商品编号"：
+//   HS 编码 = 商品编号列（数量列左侧第一个 8-13 位数字串）。编码可能与品名挤在同一文本片段
+//             （如 "4202920000尿不湿收纳包"），用正则截取即可
+//   商品英文名 = 优先取名称列第一行的英文（部分报关单品名直接用英文申报）；
+//             若第一行是中文，则在规格行（| 分隔）里挑最像品名的英文片段：
+//             多词短语优先（Sound Level Meter）> 非全大写的英文词（Anemometer）；
+//             全大写短词（VKSAO/HQUA/TE）多为品牌，得分判负不使用；
+//             实在没有英文就退回第一行原文（中文品名），保证不丢数据
+// 注意：表头标签在格子内居中、内容左对齐（内容 x 可能小于表头 x），
+// 因此名称列左边界用"前一列表头 x"
+function extractGoodsEnNameHsItems(rows){
+  // 1) 定位表头行与列边界
+  let headerIdx = -1, nameX = -1, qtyX = -1, prevX = -1;
+  for (let i = 0; i < rows.length; i++){
+    const cells = cellifyRow(rows[i].parts);
+    let hasName = false, hasQty = false;
+    for (const c of cells){
+      const s = c.parts.map(p => p.s).join('').replace(/\s/g, '');
+      if (/商品名称/.test(s)){ nameX = c.startX; hasName = true; }
+      if (/数量及单位/.test(s) || /^数量/.test(s)){ qtyX = c.startX; hasQty = true; }
+    }
+    if (hasName && hasQty){
+      headerIdx = i;
+      const lefts = cells.map(c => c.startX).filter(x => x < nameX - 5);
+      prevX = lefts.length ? Math.max(...lefts) : 0; // 名称列左侧最近的表头（如"商品编号"）
+      break;
+    }
+  }
+  if (headerIdx === -1) return '';
+  const CJK = /[\u4e00-\u9fa5]/;
+  const hasEnLoose = s => /[A-Za-z]{2,}/.test(s) && !CJK.test(s);
+  const NOISE = /^(NO|N\/A|NONE|NM|N\/M|NULL|OTHER|GENERIC|UNBRAND(ED)?|YES)$/i;
+  // 规格行片段要更像"品名"：至少 4 个字母、字母占比 ≥60%，
+  // 用来排除 "30-8000Hz"、"TS-3"、"T" 这类规格/单位/型号噪音
+  const isEnName = s => {
+    if (!hasEnLoose(s) || NOISE.test(s)) return false;
+    const letters = (s.match(/[A-Za-z]/g) || []).length;
+    return letters >= 4 && letters / s.length >= 0.6;
+  };
+  // 2) 遍历表头下方的数据行，按项号分组
+  const items = [];
+  let cur = null;
+  for (let j = headerIdx + 1; j < rows.length; j++){
+    const rowParts = rows[j].parts;
+    if (!rowParts.length) continue;
+    const joined = rowParts.map(p => p.s).join(' ');
+    // 表尾标签出现即结束
+    if (/特殊关系确认|价格影响确认|兹申明|申报单位/.test(joined)) break;
+    // 跳过纯点线分隔行 / 空行
+    const nonDot = rowParts.filter(p => !/^[.\s。·]+$/.test(p.s.trim()));
+    if (!nonDot.length) continue;
+    // 名称列内容（项号/商品编号列 与 数量列之间）；这里保留数字，便于从中截取 HS 编码
+    const nameColTxt = rowParts.filter(p => p.x >= prevX - 30 && p.x < qtyX - 1)
+      .map(p => p.s).join('').trim();
+    // 新项号：行首（最左 part）是纯数字项号，且位于名称表头左侧
+    const leftMost = rowParts[0];
+    const isNewItem = /^\d{1,3}$/.test(leftMost.s.trim()) && leftMost.x < nameX - 5;
+    if (isNewItem){
+      if (cur && (cur.lines.length || cur.hs)) items.push(cur);
+      cur = {no: parseInt(leftMost.s.trim(), 10) || 0, lines: [], hs: ''};
+    }
+    if (!cur) continue;
+    if (nameColTxt) cur.lines.push(nameColTxt);
+    // HS 编码：数量列左侧（项号列、商品编号列、名称列）第一个 8-13 位数字串
+    if (!cur.hs){
+      const leftTxt = rowParts.filter(p => p.x < qtyX - 1).map(p => p.s).join(' ');
+      const m = leftTxt.match(/\d{8,13}/);
+      if (m) cur.hs = m[0];
+    }
+  }
+  if (cur && (cur.lines.length || cur.hs)) items.push(cur);
+  // 3) 每组挑出商品英文名
+  return items.map(it => {
+    const firstRaw = it.lines.find(t => t && !/[|｜]/.test(t)) || it.lines[0] || '';
+    // 剥掉与品名挤在一起的 HS 编码（如 "4202920000尿不湿收纳包" → "尿不湿收纳包"）
+    const first = firstRaw.replace(/^\d{8,}/, '').trim();
+    // 规格行按 | 切出候选英文片段
+    const segs = [];
+    it.lines.forEach(t => { if (/[|｜]/.test(t)) t.split(/[|｜]/).forEach(s => segs.push(s.trim())); });
+    const cands = segs.filter(isEnName);
+    let en = '';
+    if (cands.length){
+      const score = s => (/\s/.test(s) ? 100 : 0)                        // 多词短语优先
+                      + (s === s.toUpperCase() ? -50 : 0)                 // 全大写多为品牌，判负
+                      + s.replace(/[^A-Za-z]/g, '').length;
+      cands.sort((a, b) => score(b) - score(a));
+      if (score(cands[0]) > 0) en = cands[0].trim();                     // 全是品牌类短词则不用
+    }
+    // 优先级：品名行本身的英文 > 中英对照表 > 规格行里的英文 > 报关单中文原文
+    let name = first;
+    if (!hasEnLoose(first)){
+      const mapped = (typeof lookupEnName === 'function') ? lookupEnName(first) : '';
+      name = mapped || en || first;
+    }
+    return {no: it.no, hs: it.hs, name};
+  }).filter(it => it.name);
+}
+// 拼成 "英文名/HS:编码"，多项之间用换行分隔（每个商品编号一行）
+// 勾选去重时：商品名称 + 商品编号 都相同的项只保留第一次出现的（保持原有顺序）
+function joinGoodsItems(items){
+  const seen = new Set();
+  const list = (typeof dedupeGoods !== 'undefined' && !dedupeGoods)
+    ? items
+    : items.filter(it => {
+        const key = `${it.name}\u0001${it.hs}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  return list.map(it => it.hs ? `${it.name}/HS:${it.hs}` : it.name).join('\n');
+}
+function extractGoodsEnNameHs(rows){ return joinGoodsItems(extractGoodsEnNameHsItems(rows)); }
+// 商品表可能跨页：只有"下一页的项号紧接上一页"才算同一张报关单的续页；
+// 项号重新从 1 开始（另一份单据，如退税联）就停止，避免不同单据串味
+function extractGoodsEnNameHsAll(rowsByPage){
+  const pages = rowsByPage && rowsByPage.length ? rowsByPage : [];
+  const out = [];
+  let expectNext = null;
+  for (const rows of pages){
+    const part = extractGoodsEnNameHsItems(rows);
+    if (!part.length) continue;
+    if (expectNext === null){
+      out.push(...part);
+      expectNext = part[part.length - 1].no + 1;
+      continue;
+    }
+    if (part[0].no === expectNext){
+      out.push(...part);
+      expectNext = part[part.length - 1].no + 1;
+    } else break;
+  }
+  return joinGoodsItems(out);
+}
+
+/* ------- 报关单"格子对齐"字段提取引擎 ------- */
+// 报关单上的常见标签（用于截断值 / 识别标签行）
+const KNOWN_LABELS = [
+  '境内收发货人','境外收发货人','境内发货人','境内收货人','境外发货人','境外收货人','生产销售单位',
+  '海关编号','预录入编号','出口日期','进口日期','申报日期','出境关别','进境关别','消费国','运抵国',
+  '指运港','装货港','起运国','贸易国','经停港','离境口岸','进境口岸','批准文号','备案号','成交方式',
+  '运输方式','运输工具名称及航次号','运输工具名称','监管方式','征免性质','征税性质','结汇方式','许可证号','合同协议号',
+  '提运单号','件数','毛重','净重','包装种类','标记唛码','随附单证','集装箱号','编号','境内目的地',
+  '境内货源地','运费','保费','杂费','合同号','页码','申报单位','出口口岸'
+].sort((a,b) => b.length - a.length);
+
+// 表头字段 → 标签写法（严格精确匹配：境内发货人只提取"境内发货人"，不会误取收货人）
+const LABEL_FIELD_ALIASES = {
+  '海关编号':   ['海关编号'],
+  '境内发货人': ['境内发货人'],
+  '境外发货人': ['境外发货人'],
+  '境内收货人': ['境内收货人'],
+  '境外收货人': ['境外收货人'],
+  '合同协议号': ['合同协议号','合同号'],
+  '提运单号':   ['提运单号','提单号'],
+  '监管方式':   ['监管方式'],
+  '成交方式':   ['成交方式'],
+  '生产销售单位': ['生产销售单位'],
+  '申报单位':   ['申报单位（签章）','申报单位（签字）','申报单位'],
+  '包装种类':   ['包装种类'],
+  '出口口岸':   ['出口口岸'],
+  '出口日期':   ['出口日期'],
+  '申报日期':   ['申报日期'],
+  '运输工具名称': ['运输工具名称'],
+  '运输工具及航次号': ['运输工具名称及航次号'],
+  '运抵国':     ['运抵国'],
+  '指运港':     ['指运港'],
+  '贸易国':     ['贸易国'],
+  '离境口岸':   ['离境口岸'],
+  '征免性质':   ['征免性质'],
+  '境内收发货人': ['境内收发货人'],
+  '集装箱号':   ['集装箱号']
+};
+const LABEL_FIELD_SET = new Set(Object.keys(LABEL_FIELD_ALIASES));
+
+// 宽松标签：允许内部任意空白（OCR 词碎片场景："海关 编号" → "海关编号"）
+function looseLabel(s){
+  return s.split('').map(c => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s*');
+}
+
+let _stopReCache = null;
+function getStopRe(){
+  if (!_stopReCache){
+    // 空格容差：标签内任意位置可出现空白（应对 OCR 把"监管方式"切成"监管 方式"）
+    _stopReCache = new RegExp('(?:' + KNOWN_LABELS.map(looseLabel).join('|') + ')');
+  }
+  return _stopReCache;
+}
+
+// 把一行的文本片段按表格格子分组：括号代码（如 "(0110)"）归属前一个格子；
+// OCR 词碎片场景：相邻词 gap < 10pt 合并入同一格子；其他与原逻辑一致
+function cellifyRow(parts){
+  const cells = [];
+  for (const p of parts){
+    const s = p.s.trim();
+    if (!s) continue;
+    const startsParen = /^[（(<〈]/.test(s);
+    const codeFragment = /[）)>〉]$/.test(s) && /^[A-Za-z0-9]/.test(s);
+    if (cells.length && (startsParen || codeFragment)){
+      cells[cells.length-1].parts.push(p);
+      continue;
+    }
+    // OCR 词碎片合并：相邻词 gap < 10pt（≈ 一个汉字宽度）→ 同一格子
+    if (cells.length && p.x1 !== undefined){
+      const lastP = cells[cells.length-1].parts[cells[cells.length-1].parts.length-1];
+      if (lastP.x1 !== undefined && p.x - lastP.x1 < 10){
+        cells[cells.length-1].parts.push(p);
+        continue;
+      }
+    }
+    cells.push({startX: p.x, parts: [p]});
+  }
+  return cells;
+}
+
+// 估算文本片段宽度（pt）：中文字符≈9，ASCII≈4.5，用于横向间隙判断
+function estPartWidth(s){
+  let w = 0;
+  for (const ch of s){ w += ch.charCodeAt(0) > 255 ? 9 : 4.5; }
+  return w;
+}
+
+// 报关单表格提取：标签在上一行、值在正下方同一格子里，按 x 坐标对齐取值
+function extractLabelValue(rows, lines, label){
+  const stopRe = getStopRe();
+  // 1) 冒号式（如 "海关编号：531620260002686974"），允许 OCR 词间空格
+  const colonRe = new RegExp(looseLabel(label) + '\\s*[：:]\\s*([^\\s（(<〈，,]+)');
+  for (const ln of lines){
+    const m = ln.match(colonRe);
+    if (m) return m[1];
+  }
+  // 2) 网格对齐：找到标签所在格子，取下方一行同一 x 区间内的内容
+  for (let i = 0; i < rows.length; i++){
+    if (!rows[i].parts.length) continue;
+    const cells = cellifyRow(rows[i].parts);
+    // 标签匹配：兼容两种来源
+    // 1) 文本层：单 part 包含完整 label 字符串
+    // 2) OCR：label 字符被拆成多个 part，需要把 cell 内的 part 拼成无空格串后包含 label
+    const ci = cells.findIndex(c => {
+      if (c.parts.some(p => p.s.includes(label))) return true;
+      const joined = c.parts.map(p => p.s).join('').replace(/[\s（）()]/g, '');
+      return joined.includes(label);
+    });
+    if (ci === -1) continue;
+    const cellStart = cells[ci].startX;
+    const cellEnd = ci + 1 < cells.length ? cells[ci+1].startX : Infinity;
+    // 向下找最多 3 行：页分隔行直接停止（禁止跨页取值），跳过纯括号代码行
+    for (let j = i + 1; j < Math.min(i + 4, rows.length); j++){
+      if (!rows[j].parts.length) break;
+      const inCell = rows[j].parts.filter(p => p.x >= cellStart - 5 && p.x < cellEnd - 1);
+      if (!inCell.length) continue;                   // 本格子下方空，继续往下找
+      const v = inCell.map(p => p.s).join(' ').replace(/\s+/g, ' ').trim();
+      if (/^[（(<〈][^（）()<>〈〉]*[）)>〉]$/.test(v)) continue; // 纯代码行，继续往下
+      if (stopRe.test(v)) break;                      // 下一行是标签行，无值
+      // 横向间隙聚类：本格子的值与右侧相邻格子的值之间有明显间隙，只取第一个连续片段
+      const clusters = [];
+      let cur = [], prevEnd = -1;
+      for (const p of inCell){
+        if (prevEnd >= 0 && p.x - prevEnd > 14){ clusters.push(cur); cur = []; }
+        cur.push(p);
+        prevEnd = p.x + estPartWidth(p.s);
+      }
+      if (cur.length) clusters.push(cur);
+      return clusters[0].map(p => p.s).join(' ').replace(/\s+/g, ' ').trim();
+    }
+    // 3) 兜底：同一行标签之后的内容（含右侧格子，去掉括号代码、截断后续标签）
+    let rest = rows[i].parts.filter(p => p.x >= cellStart).map(p => p.s).join(' ');
+    rest = rest.replace(new RegExp('^\\s*' + looseLabel(label) + '\\s*'), '')
+               .replace(/[：:]/g, ' ')
+               .replace(/^\s*[（(<〈][^）)>〉]*[）)>〉]/, '')
+               .trim();
+    const cut = rest.split(stopRe)[0].trim();
+    if (cut) return cut;
+  }
+  return '';
+}
+
+async function processOne(pdfItem, fields, idx, total){
+  const fname = pdfItem.name;
+  const result = {idx, name: fname, type: '', docNo: '', values: {}, note: '', status: 'ok'};
+  let extracted;
+  try {
+    extracted = await extractPdfText(pdfItem.file);
+  } catch(e){
+    result.status = 'err'; result.note = 'PDF 解析失败：' + (e.message || e);
+    fields.forEach(f => result.values[f.name] = '');
+    return result;
+  }
+  const text = extracted.text;
+  if (!text || text.replace(/\s/g,'').length < 10){
+    result.status = 'err';
+    result.note = '无法提取文本（该 PDF 可能是扫描件/图片版，无文字层）';
+    fields.forEach(f => result.values[f.name] = '');
+    return result;
+  }
+  const dtype = detectDocType(text);
+  result.type = dtype === 'customs' ? '报关底单' : dtype === 'bol' ? '提单' : '未识别';
+
+  // 编号
+  result.docNo = extractDocNo(text);
+
+  // 报关底单专用策略
+  let customsData = null;
+  if (dtype === 'customs' || dtype === 'unknown'){
+    customsData = customsHeaderExtract(extracted.lines);
+  }
+
+  let missCount = 0;
+  fields.forEach(f => {
+    if (f.regex){
+      const r = applyRegex(text, f.regex);
+      if (r.error){ result.values[f.name] = ''; result.note += `[${f.name}:正则无效]`; missCount++; }
+      else if (!r.value){ result.values[f.name] = ''; missCount++; }
+      else result.values[f.name] = r.value.trim();
+    } else if (LABEL_FIELD_SET.has(f.name)){
+      // 报关单表格字段：按格子对齐提取（海关编号/境内发货人/境外收货人/监管方式等）
+      let v = '';
+      for (const alias of LABEL_FIELD_ALIASES[f.name]){
+        v = extractLabelValue(extracted.rows, extracted.lines, alias);
+        if (v) break;
+      }
+      result.values[f.name] = v;
+      if (!v) missCount++;
+    } else if (f.name === '商品英文名称/HS编码'){
+      // 商品表：每项"商品英文名/HS:商品编号"，每个商品编号一行（用换行分隔）
+      const v = extractGoodsEnNameHsAll(extracted.rowsByPage || [extracted.rows]);
+      result.values[f.name] = v;
+      if (!v) missCount++;
+    } else if (f.name === '件数' || f.name === '毛重' || f.name === '净重'){
+      // 先按表格格子提取，再退回"表头定位+数据行"策略，最后退回提单英文格式正则
+      let v = '';
+      const gridV = extractLabelValue(extracted.rows, extracted.lines, f.name);
+      if (gridV){
+        const nums = gridV.match(/-?\d+(?:\.\d+)?/g);
+        if (nums) v = f.name === '件数' ? (nums.find(n => !n.includes('.')) || nums[0]) : nums[0];
+      }
+      if (!v && customsData && customsData[f.name]) v = customsData[f.name];
+      if (!v){
+        const builtin = {
+          '件数': '(\\d+)\\s*CTNS?',
+          '毛重': '(\\d+(?:\\.\\d+)?)\\s*KGS?',
+          '净重': '(\\d+(?:\\.\\d+)?)\\s*N(?:ET)?\\s*W'
+        }[f.name];
+        if (builtin) v = (applyRegex(text, builtin).value || '');
+      }
+      result.values[f.name] = v;
+      if (!v) missCount++;
+    } else {
+      const builtin = {
+        '体积': '(\\d+(?:\\.\\d+)?)\\s*CBM'
+      }[f.name];
+      if (builtin){
+        const r = applyRegex(text, builtin);
+        result.values[f.name] = r.value || '';
+        if (!r.value) missCount++;
+      } else {
+        result.values[f.name] = '';
+        result.note += `[${f.name}:未配置规则]`;
+        missCount++;
+      }
+    }
+  });
+
+  if (missCount > 0){
+    result.status = result.status === 'ok' ? 'warn' : result.status;
+    if (!result.note) result.note = `有 ${missCount} 个字段未找到`;
+  }
+  return result;
+}
+
+/* ---------------- 提取主流程 ---------------- */
+const progressWrap = document.getElementById('progressWrap');
+const progressBar = document.getElementById('progressBar');
+const progressText = document.getElementById('progressText');
+const resultCard = document.getElementById('resultCard');
+const resultTable = document.getElementById('resultTable');
+const resultStat = document.getElementById('resultStat');
+let results = [];
+
+extractBtn.addEventListener('click', () => doExtract());
+
+const clearFilesBtn = document.getElementById('clearFilesBtn');
+clearFilesBtn.addEventListener('click', () => {
+  pdfFiles = [];
+  results = [];
+  renderFileList();
+  resultCard.style.display = 'none';
+  progressWrap.style.display = 'none';
+  toast('已清空所有文件');
+});
+
+async function doExtract(){
+  const fields = getFields();
+  if (fields.length === 0){ toast('请至少配置一个字段'); return; }
+  if (pdfFiles.length === 0){ toast('请先上传 PDF 文件'); return; }
+  extractBtn.disabled = true;
+  progressWrap.style.display = 'block';
+  resultCard.style.display = 'none';
+  results = [];
+  for (let i = 0; i < pdfFiles.length; i++){
+    progressText.textContent = `正在处理 (${i+1}/${pdfFiles.length})：${pdfFiles[i].name}`;
+    progressBar.style.width = ((i+1)/pdfFiles.length*100).toFixed(1) + '%';
+    const r = await processOne(pdfFiles[i], fields, i+1, pdfFiles.length);
+    results.push(r);
+    await new Promise(res => setTimeout(res, 0));
+  }
+  const ok = results.filter(r=>r.status==='ok').length;
+  const warn = results.filter(r=>r.status==='warn').length;
+  const err = results.filter(r=>r.status==='err').length;
+  progressText.textContent = `完成！成功 ${ok} 个，部分缺失 ${warn} 个，失败 ${err} 个`;
+  renderResults(fields);
+  resultCard.style.display = 'block';
+  resultCard.scrollIntoView({behavior:'smooth'});
+  extractBtn.disabled = false;
+}
+
+function renderResults(fields){
+  const headers = ['序号','文件名','文件类型','编号', ...fields.map(f=>f.name), '备注'];
+  let html = '<thead><tr>' + headers.map(h=>`<th>${escapeHtml(h)}</th>`).join('') + '</tr></thead><tbody>';
+  results.forEach(r => {
+    const cls = r.status === 'ok' ? 'ok' : r.status === 'warn' ? 'warn' : 'err';
+    const fname = escapeHtml(r.name);
+    html += `<tr class="${cls}"><td>${r.idx}</td><td>${fname}</td><td>${escapeHtml(r.type)}</td><td>${escapeHtml(r.docNo)}</td>`;
+    fields.forEach(f => {
+      const v = r.values[f.name] || '';
+      html += v ? `<td${v.indexOf('\n') >= 0 ? ' class="multi"' : ''}>${escapeHtml(v)}</td>` : `<td class="miss">未找到</td>`;
+    });
+    html += `<td>${escapeHtml(r.note || '—')}</td></tr>`;
+  });
+  html += '</tbody>';
+  resultTable.innerHTML = html;
+  const ok = results.filter(r=>r.status==='ok').length;
+  const warn = results.filter(r=>r.status==='warn').length;
+  const err = results.filter(r=>r.status==='err').length;
+  resultStat.innerHTML = `共 <b>${results.length}</b> 个文件：成功 <b style="color:var(--green)">${ok}</b> · 部分缺失 <b style="color:var(--yellow)">${warn}</b> · 失败 <b style="color:var(--red)">${err}</b>`;
+}
+
+/* ---------------- Excel 导出 ---------------- */
+document.getElementById('exportBtn').addEventListener('click', async () => {
+  if (results.length === 0){ toast('没有可导出的结果'); return; }
+  const fields = getFields().length ? getFields() : Object.keys(results[0].values);
+  const loading = document.getElementById('loadingOverlay');
+  loading.classList.add('show');
+  try {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('提取结果');
+    const headers = ['序号','文件名','文件类型','编号', ...fields.map(f=>f.name), '备注'];
+    ws.columns = headers.map(h => ({header: h, key: h}));
+    results.forEach(r => {
+      const row = {序号: r.idx, 文件名: r.name, 文件类型: r.type, 编号: r.docNo, 备注: r.note || ''};
+      fields.forEach(f => { row[f.name] = r.values[f.name] || '未找到'; });
+      const added = ws.addRow(row);
+      let fill, font;
+      if (r.status === 'ok'){ fill = {type:'pattern', pattern:'solid', fgColor:{argb:'FFC6EFCE'}}; font = {color:{argb:'FF006100'}}; }
+      else if (r.status === 'warn'){ fill = {type:'pattern', pattern:'solid', fgColor:{argb:'FFFFEB9C'}}; font = {color:{argb:'FF9C6500'}}; }
+      else { fill = {type:'pattern', pattern:'solid', fgColor:{argb:'FFFFC7CE'}}; font = {color:{argb:'FF9C0006'}}; }
+      added.eachCell({includeEmpty:true}, cell => {
+        cell.fill = fill;
+        cell.font = Object.assign({}, cell.font, font);
+        // 含换行的单元格（如「英文名/HS:编码」逐项换行）开启自动换行，否则导出后挤在一行
+        const hasNL = typeof cell.value === 'string' && cell.value.indexOf('\n') >= 0;
+        cell.alignment = {vertical:'middle', wrapText: hasNL};
+      });
+      // 行高按最多行数估算，保证换行内容能完整显示
+      let maxLines = 1;
+      fields.forEach(f => {
+        const n = String(r.values[f.name] || '').split('\n').length;
+        if (n > maxLines) maxLines = n;
+      });
+      added.height = Math.max(15, Math.min(maxLines, 20) * 15);
+    });
+    // 表头样式
+    const headerRow = ws.getRow(1);
+    headerRow.eachCell(cell => {
+      cell.font = {bold:true, color:{argb:'FFFFFFFF'}};
+      cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:'FF2563EB'}};
+      cell.alignment = {vertical:'middle', horizontal:'center'};
+    });
+    headerRow.height = 22;
+    ws.views = [{state:'frozen', ySplit: 1}];
+    // 自动列宽
+    headers.forEach(h => {
+      let maxLen = String(h).length * 2;
+      ws.getColumn(h).eachCell({includeEmpty:false}, cell => {
+        const v = String(cell.value || '');
+        let l = 0;
+        for (const ch of v) l += ch.charCodeAt(0) > 255 ? 2 : 1;
+        if (l > maxLen) maxLen = l;
+      });
+      ws.getColumn(h).width = Math.min(maxLen + 4, 55);
+    });
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'PDF提取结果_' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '.xlsx';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('Excel 导出成功');
+  } catch(e){
+    toast('导出失败：' + (e.message || e));
+  } finally {
+    loading.classList.remove('show');
+  }
+});
+
+/* ---------------- 工具 ---------------- */
+let toastTimer;
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+</script>
+</body>
+</html>
