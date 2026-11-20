@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>单据转换工具 · 拦截单 / 出货单</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">转</div>
+      <div>
+        <h1>单据转换工具</h1>
+        <p>按模板规则一键转换为系统导入表格</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" id="btnRules">查看转换规则</button>
+    </div>
+  </header>
+
+  <section class="card type-card">
+    <div class="card-title"><span class="step">1</span> 选择转换类型</div>
+    <div class="type-tabs" id="typeTabs">
+      <button class="type-tab active" data-type="拦截单转换">
+        <span class="tab-name">拦截单转换</span>
+        <span class="tab-desc">客户名称 / 运单号 / 目的地 / 件数</span>
+      </button>
+      <button class="type-tab" data-type="拦截出货单转换">
+        <span class="tab-name">拦截出货单转换</span>
+        <span class="tab-desc">客户名称 / 原运单号 / 出货FBAID / 渠道 / 新目的地 / 新件数</span>
+      </button>
+      <button class="type-tab" data-type="暂扣海外仓出货单转换">
+        <span class="tab-name">暂扣海外仓出货单转换</span>
+        <span class="tab-desc">客户名称 / 原运单号 / 出货FBAID / 渠道 / 新目的地 / 新件数</span>
+      </button>
+    </div>
+  </section>
+
+  <div class="workspace">
+
+    <section class="card input-card">
+      <div class="card-title">
+        <span class="step">2</span> 输入模板数据
+        <span class="title-hint" id="inputHint"></span>
+      </div>
+
+      <div class="cols-info" id="colsInfo"></div>
+
+      <div class="input-toolbar">
+        <label class="btn btn-soft">
+          <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden>
+          上传 Excel / CSV
+        </label>
+        <button class="btn btn-soft" id="btnSample">填入示例</button>
+        <button class="btn btn-soft" id="btnPaste">从剪贴板粘贴</button>
+        <button class="btn btn-text" id="btnClear">清空</button>
+      </div>
+
+      <textarea id="inputText" spellcheck="false" placeholder="直接从 Excel 复制数据粘贴到这里（支持 Tab 分隔的多行多列，可含表头）&#10;&#10;例如：&#10;客户名称	运单号	目的地	件数&#10;XX客户	YT123456	ONT8	5"></textarea>
+
+      <div class="parse-bar">
+        <span id="parseStatus" class="parse-status">等待输入数据</span>
+        <button class="btn btn-primary" id="btnConvert">开始转换</button>
+      </div>
+
+      <div class="preview-wrap" id="previewWrap" hidden>
+        <div class="sub-title">输入数据预览</div>
+        <div class="table-scroll small"><table id="previewTable"></table></div>
+      </div>
+    </section>
+
+    <section class="card output-card">
+      <div class="card-title">
+        <span class="step">3</span> 转换结果
+        <span class="title-hint" id="outputHint"></span>
+      </div>
+
+      <div class="output-toolbar">
+        <button class="btn btn-primary" id="btnCopy">复制表格</button>
+        <button class="btn btn-soft" id="btnDownload">下载 Excel</button>
+        <button class="btn btn-text" id="btnDownloadCsv">下载 CSV</button>
+      </div>
+
+      <div class="table-scroll" id="outputScroll">
+        <table id="outputTable"></table>
+      </div>
+
+      <div class="output-foot" id="outputFoot">尚未转换</div>
+    </section>
+
+  </div>
+
+  <section class="card rules-card" id="rulesCard" hidden>
+    <div class="card-title"><span class="step">规</span> 当前转换规则 <button class="btn btn-text" id="btnCloseRules">收起</button></div>
+    <p class="rules-note">规则来自「转换.xlsx」第一个子表格的第 2 / 3 / 4 行。若与预期不符，请以原始表格为准。</p>
+    <div class="table-scroll"><table id="rulesTable"></table></div>
+  </section>
+
+  <footer class="foot">
+    邮编依据「邮编」工作表自动匹配 · 未匹配到的目的地会以橙色标记
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="xlsx.full.min.js"></script>
+<script src="data.js"></script>
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
