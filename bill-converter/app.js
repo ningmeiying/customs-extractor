@@ -1,0 +1,229 @@
+(function () {
+  "use strict";
+
+  const D = window.CONVERTER_DATA;
+  const C = window.ConverterCore;
+  const HEADERS = C.HEADERS;
+  const TYPES = C.TYPES;
+  const $ = (id) => document.getElementById(id);
+
+  const el = {
+    tabs: $("typeTabs"), input: $("inputText"), file: $("fileInput"),
+    parseStatus: $("parseStatus"), previewWrap: $("previewWrap"), previewTable: $("previewTable"),
+    outputTable: $("outputTable"), outputFoot: $("outputFoot"), outputHint: $("outputHint"),
+    inputHint: $("inputHint"), colsInfo: $("colsInfo"), rulesCard: $("rulesCard"),
+    rulesTable: $("rulesTable"), toast: $("toast")
+  };
+
+  let currentType = "拦截单转换";
+  let inputRows = [];
+  let outputRows = [];
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, (m) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[m]));
+  }
+
+  function toast(msg) {
+    el.toast.textContent = msg;
+    el.toast.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => el.toast.classList.remove("show"), 2400);
+  }
+
+  function renderPreview() {
+    if (!inputRows.length) { el.previewWrap.hidden = true; return; }
+    el.previewWrap.hidden = false;
+    const cols = TYPES[currentType].cols;
+    let html = "<thead><tr><th>#</th>" + cols.map((c) => "<th>" + esc(c) + "</th>").join("") + "</tr></thead><tbody>";
+    inputRows.forEach((r, i) => {
+      html += "<tr><td>" + (i + 1) + "</td>";
+      cols.forEach((_, j) => { html += "<td>" + esc(r[j] || "") + "</td>"; });
+      html += "</tr>";
+    });
+    el.previewTable.innerHTML = html + "</tbody>";
+  }
+
+  function renderOutput() {
+    if (!outputRows.length) { el.outputTable.innerHTML = ""; return; }
+    let html = "<thead><tr>" + HEADERS.map((h) => "<th>" + esc(h) + "</th>").join("") + "</tr></thead><tbody>";
+    outputRows.forEach((r) => {
+      html += "<tr>";
+      HEADERS.forEach((h) => {
+        const v = r[h] || "";
+        let cls = "";
+        if (h === "邮编" && !v && r["目的地"]) cls = ' class="missing" title="目的地未在邮编表中匹配到"';
+        if (h === "尾程派送" && !v && r["渠道"]) cls = ' class="empty-time" title="渠道中未识别到快递/卡车派送关键词"';
+        html += "<td" + cls + ">" + esc(v) + "</td>";
+      });
+      html += "</tr>";
+    });
+    el.outputTable.innerHTML = html + "</tbody>";
+  }
+
+  function renderRules() {
+    const rule = D.rules[currentType] || [];
+    let html = "<thead><tr><th>输出列</th><th>转换规则</th></tr></thead><tbody>";
+    HEADERS.forEach((h, i) => {
+      const r = String(rule[i] || "（空）").replace(/\n/g, "<br>");
+      html += "<tr><td><b>" + esc(h) + "</b></td><td>" + r + "</td></tr>";
+    });
+    el.rulesTable.innerHTML = html + "</tbody>";
+  }
+
+  function updateMeta() {
+    const cfg = TYPES[currentType];
+    el.inputHint.textContent = "共 " + cfg.cols.length + " 列";
+    el.colsInfo.innerHTML = cfg.cols.map((c, i) => '<span class="col-chip"><b>' + String.fromCharCode(65 + i) + "</b>" + esc(c) + "</span>").join("");
+  }
+
+  function handleInput() {
+    inputRows = C.parseInput(el.input.value);
+    outputRows = [];
+    renderPreview();
+    renderOutput();
+    el.outputFoot.textContent = "尚未转换";
+    el.outputFoot.className = "output-foot";
+    el.outputHint.textContent = "";
+    if (!inputRows.length) {
+      el.parseStatus.textContent = "等待输入数据";
+      el.parseStatus.className = "parse-status";
+    } else {
+      const cfg = TYPES[currentType];
+      const shortRows = inputRows.filter((r) => r.length < cfg.cols.length).length;
+      el.parseStatus.textContent = "已识别 " + inputRows.length + " 行" + (shortRows ? "（" + shortRows + " 行列数不足，已按空值处理）" : "");
+      el.parseStatus.className = "parse-status " + (shortRows ? "warn" : "ok");
+    }
+  }
+
+  function convert() {
+    if (!inputRows.length) { toast("请先输入或上传模板数据"); return; }
+    const fn = TYPES[currentType].convert;
+    outputRows = inputRows.map((r) => fn(r));
+    renderOutput();
+    const unmatched = outputRows.filter((r) => r["目的地"] && !r["邮编"]).length;
+    const noTime = outputRows.filter((r) => r["渠道"] && !r["尾程派送"]).length;
+    el.outputHint.textContent = "已转换 " + outputRows.length + " 行";
+    el.outputFoot.className = "output-foot " + (unmatched || noTime ? "warn" : "ok");
+    let msg = "✓ 转换完成，共 " + outputRows.length + " 行";
+    if (unmatched) msg += " · ⚠ " + unmatched + " 行邮编未匹配";
+    if (noTime) msg += " · ⚠ " + noTime + " 行尾程派送未识别";
+    el.outputFoot.textContent = msg;
+    toast("转换完成：" + outputRows.length + " 行");
+  }
+
+  function matrix() {
+    return [HEADERS.slice()].concat(outputRows.map((r) => HEADERS.map((h) => String(r[h] || ""))));
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(() => toast("已复制到剪贴板")).catch(() => fallbackCopy(text));
+    } else fallbackCopy(text);
+  }
+  function fallbackCopy(text) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); toast("已复制到剪贴板"); }
+    catch (e) { toast("复制失败，请手动选择表格内容"); }
+    document.body.removeChild(ta);
+  }
+
+  function csvCell(v) {
+    const s = String(v == null ? "" : v);
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  el.tabs.addEventListener("click", (e) => {
+    const btn = e.target.closest(".type-tab");
+    if (!btn) return;
+    document.querySelectorAll(".type-tab").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentType = btn.dataset.type;
+    outputRows = [];
+    updateMeta();
+    renderRules();
+    handleInput();
+  });
+
+  el.input.addEventListener("input", handleInput);
+
+  $("btnClear").addEventListener("click", () => { el.input.value = ""; handleInput(); toast("已清空"); });
+
+  $("btnSample").addEventListener("click", () => {
+    el.input.value = TYPES[currentType].example.map((r) => r.join("\t")).join("\n");
+    handleInput();
+    toast("已填入示例数据");
+  });
+
+  $("btnPaste").addEventListener("click", async () => {
+    try {
+      const t = await navigator.clipboard.readText();
+      el.input.value = t;
+      handleInput();
+      toast("已从剪贴板粘贴");
+    } catch (e) {
+      toast("无法读取剪贴板，请直接按 Ctrl+V 粘贴到输入框");
+    }
+  });
+
+  el.file.addEventListener("change", (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
+        el.input.value = aoa.map((row) => row.map((c) => String(c).trim()).join("\t")).join("\n");
+        handleInput();
+        toast("已读取文件：" + f.name);
+      } catch (err) {
+        toast("文件读取失败，请确认是 Excel 或 CSV 文件");
+      }
+    };
+    reader.readAsArrayBuffer(f);
+    e.target.value = "";
+  });
+
+  $("btnConvert").addEventListener("click", convert);
+
+  $("btnCopy").addEventListener("click", () => {
+    if (!outputRows.length) { toast("请先转换数据"); return; }
+    copyText(matrix().map((r) => r.join("\t")).join("\n"));
+  });
+
+  $("btnDownload").addEventListener("click", () => {
+    if (!outputRows.length) { toast("请先转换数据"); return; }
+    const ws = XLSX.utils.aoa_to_sheet(matrix());
+    ws["!cols"] = HEADERS.map((h) => ({ wch: Math.max(12, String(h).length * 2 + 2) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "转换结果");
+    XLSX.writeFile(wb, "转换结果.xlsx");
+    toast("Excel 已下载");
+  });
+
+  $("btnDownloadCsv").addEventListener("click", () => {
+    if (!outputRows.length) { toast("请先转换数据"); return; }
+    const csv = "\ufeff" + matrix().map((r) => r.map(csvCell).join(",")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = "转换结果.csv";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast("CSV 已下载");
+  });
+
+  $("btnRules").addEventListener("click", () => { el.rulesCard.hidden = !el.rulesCard.hidden; });
+  $("btnCloseRules").addEventListener("click", () => { el.rulesCard.hidden = true; });
+
+  updateMeta();
+  renderRules();
+  handleInput();
+})();
