@@ -18,7 +18,9 @@
   const TPL_FILES = {
     "拦截单转换": "templates/拦截单转换模板.xlsx",
     "拦截出货单转换": "templates/拦截出货单转换模板.xlsx",
-    "暂扣海外仓出货单转换": "templates/暂扣海外仓出货单转换模板.xlsx"
+    "暂扣海外仓出货单转换": "templates/暂扣海外仓出货单转换模板.xlsx",
+    "退运单转换": "templates/退运单转换模板.xlsx",
+    "退运单出货单转换": "templates/退运单出货单转换模板.xlsx"
   };
 
   let currentType = "拦截单转换";
@@ -108,12 +110,16 @@
     if (!inputRows.length) { toast("请先输入或上传模板数据"); return; }
     const fn = TYPES[currentType].convert;
     outputRows = inputRows.map((r) => fn(r));
+    const before = outputRows.map((r) => r["运单号"]);
+    C.dedupeWaybills(currentType, outputRows);
+    const dupCount = outputRows.filter((r, i) => r["运单号"] !== before[i]).length;
     renderOutput();
     const unmatched = outputRows.filter((r) => r["目的地"] && !r["邮编"]).length;
     const noTime = outputRows.filter((r) => r["渠道"] && !r["尾程派送"]).length;
     el.outputHint.textContent = "已转换 " + outputRows.length + " 行";
     el.outputFoot.className = "output-foot " + (unmatched || noTime ? "warn" : "ok");
     let msg = "✓ 转换完成，共 " + outputRows.length + " 行";
+    if (dupCount) msg += " · " + dupCount + " 行重复运单号已加区分后缀";
     if (unmatched) msg += " · ⚠ " + unmatched + " 行邮编未匹配";
     if (noTime) msg += " · ⚠ " + noTime + " 行尾程派送未识别";
     el.outputFoot.textContent = msg;
