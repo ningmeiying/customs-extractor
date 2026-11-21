@@ -40,6 +40,38 @@
     </div>
   </section>
 
+  <section class="card template-card">
+    <div class="card-title"><span class="step">下</span> 下载填写模板
+      <span class="title-hint">下载后填写数据，再粘贴或上传到下方输入框</span>
+    </div>
+    <div class="template-list">
+      <a class="template-item" href="templates/拦截单转换模板.xlsx" download="拦截单转换模板.xlsx">
+        <span class="tpl-icon">XLSX</span>
+        <span class="tpl-body">
+          <span class="tpl-name">拦截单转换模板</span>
+          <span class="tpl-cols">客户名称 / 运单号 / 目的地 / 件数</span>
+        </span>
+        <span class="tpl-dl">下载 ↓</span>
+      </a>
+      <a class="template-item" href="templates/拦截出货单转换模板.xlsx" download="拦截出货单转换模板.xlsx">
+        <span class="tpl-icon">XLSX</span>
+        <span class="tpl-body">
+          <span class="tpl-name">拦截出货单转换模板</span>
+          <span class="tpl-cols">客户名称 / 原运单号 / 出货FBAID / 渠道 / 新目的地 / 新件数</span>
+        </span>
+        <span class="tpl-dl">下载 ↓</span>
+      </a>
+      <a class="template-item" href="templates/暂扣海外仓出货单转换模板.xlsx" download="暂扣海外仓出货单转换模板.xlsx">
+        <span class="tpl-icon">XLSX</span>
+        <span class="tpl-body">
+          <span class="tpl-name">暂扣海外仓出货单转换模板</span>
+          <span class="tpl-cols">客户名称 / 原运单号 / 出货FBAID / 渠道 / 新目的地 / 新件数</span>
+        </span>
+        <span class="tpl-dl">下载 ↓</span>
+      </a>
+    </div>
+  </section>
+
   <div class="workspace">
 
     <section class="card input-card">
@@ -51,6 +83,7 @@
       <div class="cols-info" id="colsInfo"></div>
 
       <div class="input-toolbar">
+        <a class="btn btn-soft" id="btnTpl" href="templates/拦截单转换模板.xlsx" download>下载本模板</a>
         <label class="btn btn-soft">
           <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden>
           上传 Excel / CSV
@@ -80,7 +113,7 @@
       </div>
 
       <div class="output-toolbar">
-        <button class="btn btn-primary" id="btnCopy">复制表格</button>
+        <button class="btn btn-primary" id="btnCopy">复制结果（不含表头）</button>
         <button class="btn btn-soft" id="btnDownload">下载 Excel</button>
         <button class="btn btn-text" id="btnDownloadCsv">下载 CSV</button>
       </div>
