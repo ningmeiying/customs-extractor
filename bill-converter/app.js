@@ -12,7 +12,13 @@
     parseStatus: $("parseStatus"), previewWrap: $("previewWrap"), previewTable: $("previewTable"),
     outputTable: $("outputTable"), outputFoot: $("outputFoot"), outputHint: $("outputHint"),
     inputHint: $("inputHint"), colsInfo: $("colsInfo"), rulesCard: $("rulesCard"),
-    rulesTable: $("rulesTable"), toast: $("toast")
+    rulesTable: $("rulesTable"), toast: $("toast"), btnTpl: $("btnTpl")
+  };
+
+  const TPL_FILES = {
+    "拦截单转换": "templates/拦截单转换模板.xlsx",
+    "拦截出货单转换": "templates/拦截出货单转换模板.xlsx",
+    "暂扣海外仓出货单转换": "templates/暂扣海外仓出货单转换模板.xlsx"
   };
 
   let currentType = "拦截单转换";
@@ -76,6 +82,7 @@
     const cfg = TYPES[currentType];
     el.inputHint.textContent = "共 " + cfg.cols.length + " 列";
     el.colsInfo.innerHTML = cfg.cols.map((c, i) => '<span class="col-chip"><b>' + String.fromCharCode(65 + i) + "</b>" + esc(c) + "</span>").join("");
+    if (el.btnTpl) el.btnTpl.href = TPL_FILES[currentType];
   }
 
   function handleInput() {
@@ -113,8 +120,12 @@
     toast("转换完成：" + outputRows.length + " 行");
   }
 
+  function dataMatrix() {
+    return outputRows.map((r) => HEADERS.map((h) => String(r[h] || "")));
+  }
+
   function matrix() {
-    return [HEADERS.slice()].concat(outputRows.map((r) => HEADERS.map((h) => String(r[h] || ""))));
+    return [HEADERS.slice()].concat(dataMatrix());
   }
 
   function copyText(text) {
@@ -196,7 +207,7 @@
 
   $("btnCopy").addEventListener("click", () => {
     if (!outputRows.length) { toast("请先转换数据"); return; }
-    copyText(matrix().map((r) => r.join("\t")).join("\n"));
+    copyText(dataMatrix().map((r) => r.join("\t")).join("\n"));
   });
 
   $("btnDownload").addEventListener("click", () => {
