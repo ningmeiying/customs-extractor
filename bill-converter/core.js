@@ -3,6 +3,7 @@
   const D = root.CONVERTER_DATA;
   const POSTAL = D.postal;
   const HEADERS = D.headers;
+  const FEE_HEADERS = ["运单号", "拦截费用", "拦截指令"];
 
   const joinParts = (parts) => parts.filter((x) => x !== "" && x != null).join("-");
 
@@ -198,7 +199,56 @@
     }
   };
 
-  const Core = { POSTAL, HEADERS, TYPES, parseInput, lookupPostal, lastMile, dedupeWaybills };
+  // 拦截费及拦截指令：按「工作号+客户名称」分柜，输出3列
+  // 输入列：A工作号 B渠道 C客户名称 D运单号 E目的地 F件数
+  function convertFeeAndInstruction(rows) {
+    const cabinets = [];
+    const index = new Map();
+    rows.forEach((a) => {
+      const workNo = a[0] || "";
+      const customer = a[2] || "";
+      const key = workNo + "\u0000" + customer;
+      let cab;
+      if (index.has(key)) cab = index.get(key);
+      else {
+        cab = { workNo, customer, channel: a[1] || "", items: [] };
+        index.set(key, cab);
+        cabinets.push(cab);
+      }
+      cab.items.push({ waybill: a[3] || "", pieces: a[5] || "" });
+    });
+
+    return cabinets.map((cab) => {
+      const waybills = cab.items.map((x) => x.waybill).filter(Boolean);
+      const merged = waybills.join(",");
+      const ticketCount = cab.items.length;
+      let fee = 100 + 50 * Math.max(0, ticketCount - 1);
+      if (fee > 500) fee = 500;
+      const feeText = "USD" + fee;
+
+      let totalPieces = 0;
+      let hasPiece = false;
+      cab.items.forEach((x) => {
+        const n = parseFloat(x.pieces);
+        if (!isNaN(n)) { totalPieces += n; hasPiece = true; }
+      });
+      const piecesText = hasPiece ? String(totalPieces) : "";
+
+      const holdList = waybills.map((w) => w + "-HOLD").join(",");
+
+      const instruction = [
+        merged + "，" + piecesText + "，" + cab.channel + "，此票需要目的港扣货",
+        "目的港扣货原因：暂扣海外仓。",
+        "申请扣货新建订单：" + holdList + "。",
+        "拦截后的操作需求：暂扣海外仓。",
+        "目的港扣货费用：" + feeText + "，已确认。"
+      ].join("\n");
+
+      return { "运单号": merged, "拦截费用": feeText, "拦截指令": instruction };
+    });
+  }
+
+  const Core = { POSTAL, HEADERS, FEE_HEADERS, TYPES, parseInput, lookupPostal, lastMile, dedupeWaybills, convertFeeAndInstruction };
   root.ConverterCore = Core;
   if (typeof module !== "undefined" && module.exports) module.exports = Core;
 })(typeof window !== "undefined" ? window : globalThis);
