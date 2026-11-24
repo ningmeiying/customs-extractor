@@ -9,16 +9,16 @@
   const $ = (id) => document.getElementById(id);
 
   const FEE_TYPE = "拦截费及拦截指令";
-  const FEE_COLS = ["工作号", "渠道", "客户名称", "运单号", "目的地", "件数"];
+  const FEE_COLS = ["工作号", "渠道", "客户名称", "运单号", "件数"];
   const FEE_EXAMPLE = [
-    ["WG001", "海外仓服务+卡车派送", "客户A", "FBA19XN9KC3F", "LAX9", "2"],
-    ["WG001", "海外仓服务+卡车派送", "客户A", "FBA19XSG89L0", "LAX9", "3"],
-    ["WG002", "海外仓服务+快递派送", "客户B", "FBA19Y2QNB7P", "ONT8", "1"]
+    ["WG001", "海外仓服务+卡车派送", "客户A", "FBA19XN9KC3F", "2"],
+    ["WG001", "海外仓服务+卡车派送", "客户A", "FBA19XSG89L0", "3"],
+    ["WG002", "海外仓服务+快递派送", "客户B", "FBA19Y2QNB7P", "1"]
   ];
   const FEE_RULES = [
     "（拦截费及拦截指令模板）D列，当工作号一致时合并，英文逗号隔开。例：FBA19XN9KC3F,FBA19XSG89L0",
-    "工作号+客户名称一致视为同一柜：首票 USD100，同柜每多一票 +USD50，封顶 USD500/柜",
-    "运单号，件数（该柜合计），渠道（首行），此票需要目的港扣货\n目的港扣货原因：暂扣海外仓。\n申请扣货新建订单：每个运单号分别加 -HOLD\n拦截后的操作需求：暂扣海外仓。\n目的港扣货费用：费用金额，已确认。"
+    "工作号+客户名称一致视为同一柜：首票 100USD，同柜每多一票 +50USD，封顶 500USD/柜；末行输出拦截费用求和",
+    "运单号，件数（同个运单号的数值求和），渠道（首行），此票需要目的港扣货\n目的港扣货原因：暂扣海外仓。\n申请扣货新建订单：每个运单号分别加 -HOLD\n拦截后的操作需求：暂扣海外仓。\n目的港扣货费用：费用金额，已确认。"
   ];
 
   const el = {
@@ -79,7 +79,8 @@
     const headers = curHeaders();
     let html = "<thead><tr>" + headers.map((h) => "<th>" + esc(h) + "</th>").join("") + "</tr></thead><tbody>";
     outputRows.forEach((r) => {
-      html += "<tr>";
+      const totalStyle = r.isTotal ? ' style="font-weight:700;background:#eef4ff"' : "";
+      html += "<tr" + totalStyle + ">";
       headers.forEach((h) => {
         const v = r[h] || "";
         let cls = "";
@@ -135,11 +136,12 @@
     if (!inputRows.length) { toast("请先输入或上传模板数据"); return; }
     if (isFee()) {
       outputRows = C.convertFeeAndInstruction(inputRows);
+      const cabCount = outputRows.filter((r) => !r.isTotal).length;
       renderOutput();
-      el.outputHint.textContent = "已生成 " + outputRows.length + " 柜";
+      el.outputHint.textContent = "已生成 " + cabCount + " 柜";
       el.outputFoot.className = "output-foot ok";
-      el.outputFoot.textContent = "✓ 生成完成，共 " + outputRows.length + " 个柜（按工作号+客户名称分组）";
-      toast("生成完成：" + outputRows.length + " 柜");
+      el.outputFoot.textContent = "✓ 生成完成，共 " + cabCount + " 个柜（按工作号+客户名称分组），末行已汇总拦截费用";
+      toast("生成完成：" + cabCount + " 柜");
       return;
     }
     const fn = TYPES[currentType].convert;
