@@ -66,6 +66,12 @@ body{
 .type-tab.active .tab-name{color:var(--primary-dark);}
 .tab-desc{display:block;color:var(--muted);font-size:11.5px;line-height:1.45;}
 
+.fee-notice{
+  margin-top:12px;padding:10px 14px;border-radius:8px;
+  background:#fff1f0;border:1px solid #ffccc7;color:#d4380d;
+  font-size:13px;font-weight:600;line-height:1.5;
+}
+
 .template-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;}
 .template-item{
   display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--text);
