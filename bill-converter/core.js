@@ -200,7 +200,7 @@
   };
 
   // 拦截费及拦截指令：按「工作号+客户名称」分柜，输出3列
-  // 输入列：A工作号 B渠道 C客户名称 D运单号 E目的地 F件数
+  // 输入列：A工作号 B渠道 C客户名称 D运单号 E件数
   function convertFeeAndInstruction(rows) {
     const cabinets = [];
     const index = new Map();
@@ -215,16 +215,18 @@
         index.set(key, cab);
         cabinets.push(cab);
       }
-      cab.items.push({ waybill: a[3] || "", pieces: a[5] || "" });
+      cab.items.push({ waybill: a[3] || "", pieces: a[4] || "" });
     });
 
-    return cabinets.map((cab) => {
+    let sumFee = 0;
+    const out = cabinets.map((cab) => {
       const waybills = cab.items.map((x) => x.waybill).filter(Boolean);
       const merged = waybills.join(",");
       const ticketCount = cab.items.length;
       let fee = 100 + 50 * Math.max(0, ticketCount - 1);
       if (fee > 500) fee = 500;
-      const feeText = "USD" + fee;
+      sumFee += fee;
+      const feeText = fee + "USD";
 
       let totalPieces = 0;
       let hasPiece = false;
@@ -246,6 +248,9 @@
 
       return { "运单号": merged, "拦截费用": feeText, "拦截指令": instruction };
     });
+
+    out.push({ "运单号": "合计", "拦截费用": sumFee + "USD", "拦截指令": "", "isTotal": true });
+    return out;
   }
 
   const Core = { POSTAL, HEADERS, FEE_HEADERS, TYPES, parseInput, lookupPostal, lastMile, dedupeWaybills, convertFeeAndInstruction };
