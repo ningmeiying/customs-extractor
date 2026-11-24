@@ -4,8 +4,22 @@
   const D = window.CONVERTER_DATA;
   const C = window.ConverterCore;
   const HEADERS = C.HEADERS;
+  const FEE_HEADERS = C.FEE_HEADERS;
   const TYPES = C.TYPES;
   const $ = (id) => document.getElementById(id);
+
+  const FEE_TYPE = "拦截费及拦截指令";
+  const FEE_COLS = ["工作号", "渠道", "客户名称", "运单号", "目的地", "件数"];
+  const FEE_EXAMPLE = [
+    ["WG001", "海外仓服务+卡车派送", "客户A", "FBA19XN9KC3F", "LAX9", "2"],
+    ["WG001", "海外仓服务+卡车派送", "客户A", "FBA19XSG89L0", "LAX9", "3"],
+    ["WG002", "海外仓服务+快递派送", "客户B", "FBA19Y2QNB7P", "ONT8", "1"]
+  ];
+  const FEE_RULES = [
+    "（拦截费及拦截指令模板）D列，当工作号一致时合并，英文逗号隔开。例：FBA19XN9KC3F,FBA19XSG89L0",
+    "工作号+客户名称一致视为同一柜：首票 USD100，同柜每多一票 +USD50，封顶 USD500/柜",
+    "运单号，件数（该柜合计），渠道（首行），此票需要目的港扣货\n目的港扣货原因：暂扣海外仓。\n申请扣货新建订单：每个运单号分别加 -HOLD\n拦截后的操作需求：暂扣海外仓。\n目的港扣货费用：费用金额，已确认。"
+  ];
 
   const el = {
     tabs: $("typeTabs"), input: $("inputText"), file: $("fileInput"),
@@ -20,12 +34,19 @@
     "拦截出货单转换": "templates/拦截出货单转换模板.xlsx",
     "暂扣海外仓出货单转换": "templates/暂扣海外仓出货单转换模板.xlsx",
     "退运单转换": "templates/退运单转换模板.xlsx",
-    "退运单出货单转换": "templates/退运单出货单转换模板.xlsx"
+    "退运单出货单转换": "templates/退运单出货单转换模板.xlsx",
+    [FEE_TYPE]: "templates/拦截费及拦截指令模板.xlsx"
   };
 
   let currentType = "拦截单转换";
   let inputRows = [];
   let outputRows = [];
+
+  const isFee = () => currentType === FEE_TYPE;
+  const curHeaders = () => (isFee() ? FEE_HEADERS : HEADERS);
+  const curCols = () => (isFee() ? FEE_COLS : TYPES[currentType].cols);
+  const curExample = () => (isFee() ? FEE_EXAMPLE : TYPES[currentType].example);
+  const curRules = () => (isFee() ? FEE_RULES : (D.rules[currentType] || []));
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, (m) => ({
@@ -43,7 +64,7 @@
   function renderPreview() {
     if (!inputRows.length) { el.previewWrap.hidden = true; return; }
     el.previewWrap.hidden = false;
-    const cols = TYPES[currentType].cols;
+    const cols = curCols();
     let html = "<thead><tr><th>#</th>" + cols.map((c) => "<th>" + esc(c) + "</th>").join("") + "</tr></thead><tbody>";
     inputRows.forEach((r, i) => {
       html += "<tr><td>" + (i + 1) + "</td>";
@@ -55,15 +76,18 @@
 
   function renderOutput() {
     if (!outputRows.length) { el.outputTable.innerHTML = ""; return; }
-    let html = "<thead><tr>" + HEADERS.map((h) => "<th>" + esc(h) + "</th>").join("") + "</tr></thead><tbody>";
+    const headers = curHeaders();
+    let html = "<thead><tr>" + headers.map((h) => "<th>" + esc(h) + "</th>").join("") + "</tr></thead><tbody>";
     outputRows.forEach((r) => {
       html += "<tr>";
-      HEADERS.forEach((h) => {
+      headers.forEach((h) => {
         const v = r[h] || "";
         let cls = "";
         if (h === "邮编" && !v && r["目的地"]) cls = ' class="missing" title="目的地未在邮编表中匹配到"';
         if (h === "尾程派送" && !v && r["渠道"]) cls = ' class="empty-time" title="渠道中未识别到快递/卡车派送关键词"';
-        html += "<td" + cls + ">" + esc(v) + "</td>";
+        const text = h === "拦截指令" ? esc(v).replace(/\n/g, "<br>") : esc(v);
+        const extra = h === "拦截指令" ? ' style="white-space:pre-wrap;min-width:420px"' : "";
+        html += "<td" + cls + extra + ">" + text + "</td>";
       });
       html += "</tr>";
     });
@@ -71,9 +95,10 @@
   }
 
   function renderRules() {
-    const rule = D.rules[currentType] || [];
+    const rule = curRules();
+    const headers = curHeaders();
     let html = "<thead><tr><th>输出列</th><th>转换规则</th></tr></thead><tbody>";
-    HEADERS.forEach((h, i) => {
+    headers.forEach((h, i) => {
       const r = String(rule[i] || "（空）").replace(/\n/g, "<br>");
       html += "<tr><td><b>" + esc(h) + "</b></td><td>" + r + "</td></tr>";
     });
@@ -81,9 +106,9 @@
   }
 
   function updateMeta() {
-    const cfg = TYPES[currentType];
-    el.inputHint.textContent = "共 " + cfg.cols.length + " 列";
-    el.colsInfo.innerHTML = cfg.cols.map((c, i) => '<span class="col-chip"><b>' + String.fromCharCode(65 + i) + "</b>" + esc(c) + "</span>").join("");
+    const cols = curCols();
+    el.inputHint.textContent = "共 " + cols.length + " 列";
+    el.colsInfo.innerHTML = cols.map((c, i) => '<span class="col-chip"><b>' + String.fromCharCode(65 + i) + "</b>" + esc(c) + "</span>").join("");
     if (el.btnTpl) el.btnTpl.href = TPL_FILES[currentType];
   }
 
@@ -99,8 +124,8 @@
       el.parseStatus.textContent = "等待输入数据";
       el.parseStatus.className = "parse-status";
     } else {
-      const cfg = TYPES[currentType];
-      const shortRows = inputRows.filter((r) => r.length < cfg.cols.length).length;
+      const cols = curCols();
+      const shortRows = inputRows.filter((r) => r.length < cols.length).length;
       el.parseStatus.textContent = "已识别 " + inputRows.length + " 行" + (shortRows ? "（" + shortRows + " 行列数不足，已按空值处理）" : "");
       el.parseStatus.className = "parse-status " + (shortRows ? "warn" : "ok");
     }
@@ -108,6 +133,15 @@
 
   function convert() {
     if (!inputRows.length) { toast("请先输入或上传模板数据"); return; }
+    if (isFee()) {
+      outputRows = C.convertFeeAndInstruction(inputRows);
+      renderOutput();
+      el.outputHint.textContent = "已生成 " + outputRows.length + " 柜";
+      el.outputFoot.className = "output-foot ok";
+      el.outputFoot.textContent = "✓ 生成完成，共 " + outputRows.length + " 个柜（按工作号+客户名称分组）";
+      toast("生成完成：" + outputRows.length + " 柜");
+      return;
+    }
     const fn = TYPES[currentType].convert;
     outputRows = inputRows.map((r) => fn(r));
     const before = outputRows.map((r) => r["运单号"]);
@@ -127,11 +161,12 @@
   }
 
   function dataMatrix() {
-    return outputRows.map((r) => HEADERS.map((h) => String(r[h] || "")));
+    const headers = curHeaders();
+    return outputRows.map((r) => headers.map((h) => String(r[h] || "")));
   }
 
   function matrix() {
-    return [HEADERS.slice()].concat(dataMatrix());
+    return [curHeaders().slice()].concat(dataMatrix());
   }
 
   function copyText(text) {
@@ -173,7 +208,7 @@
   $("btnClear").addEventListener("click", () => { el.input.value = ""; handleInput(); toast("已清空"); });
 
   $("btnSample").addEventListener("click", () => {
-    el.input.value = TYPES[currentType].example.map((r) => r.join("\t")).join("\n");
+    el.input.value = curExample().map((r) => r.join("\t")).join("\n");
     handleInput();
     toast("已填入示例数据");
   });
@@ -218,11 +253,12 @@
 
   $("btnDownload").addEventListener("click", () => {
     if (!outputRows.length) { toast("请先转换数据"); return; }
+    const headers = curHeaders();
     const ws = XLSX.utils.aoa_to_sheet(matrix());
-    ws["!cols"] = HEADERS.map((h) => ({ wch: Math.max(12, String(h).length * 2 + 2) }));
+    ws["!cols"] = headers.map((h) => ({ wch: Math.max(12, String(h).length * 2 + 2) }));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "转换结果");
-    XLSX.writeFile(wb, "转换结果.xlsx");
+    XLSX.utils.book_append_sheet(wb, ws, isFee() ? "拦截费及指令" : "转换结果");
+    XLSX.writeFile(wb, isFee() ? "拦截费及拦截指令.xlsx" : "转换结果.xlsx");
     toast("Excel 已下载");
   });
 
@@ -231,7 +267,7 @@
     const csv = "\ufeff" + matrix().map((r) => r.map(csvCell).join(",")).join("\r\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
-    a.href = url; a.download = "转换结果.csv";
+    a.href = url; a.download = isFee() ? "拦截费及拦截指令.csv" : "转换结果.csv";
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
     toast("CSV 已下载");
