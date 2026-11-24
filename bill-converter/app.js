@@ -26,7 +26,7 @@
     parseStatus: $("parseStatus"), previewWrap: $("previewWrap"), previewTable: $("previewTable"),
     outputTable: $("outputTable"), outputFoot: $("outputFoot"), outputHint: $("outputHint"),
     inputHint: $("inputHint"), colsInfo: $("colsInfo"), rulesCard: $("rulesCard"),
-    rulesTable: $("rulesTable"), toast: $("toast"), btnTpl: $("btnTpl")
+    rulesTable: $("rulesTable"), toast: $("toast"), btnTpl: $("btnTpl"), feeNotice: $("feeNotice")
   };
 
   const TPL_FILES = {
@@ -108,6 +108,7 @@
 
   function updateMeta() {
     const cols = curCols();
+    if (el.feeNotice) el.feeNotice.hidden = !isFee();
     el.inputHint.textContent = "共 " + cols.length + " 列";
     el.colsInfo.innerHTML = cols.map((c, i) => '<span class="col-chip"><b>' + String.fromCharCode(65 + i) + "</b>" + esc(c) + "</span>").join("");
     if (el.btnTpl) el.btnTpl.href = TPL_FILES[currentType];
