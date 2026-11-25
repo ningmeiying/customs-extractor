@@ -53,10 +53,10 @@
   const twoDigit = (n) => String(n + 1).padStart(2, "0");
 
   // 对转换结果中的重复运单号加区分后缀
-  // 拦截出货单转换: 完整运单号后加 -A/-B
+  // 拦截出货单转换、暂扣海外仓出货单转换: 完整运单号后加 -A/-B
   // 退运单出货单转换: 在模板B列（即 -00BR 之前）后加 01/02
   function dedupeWaybills(type, rows) {
-    if (type !== "拦截出货单转换" && type !== "退运单出货单转换") return rows;
+    if (type !== "拦截出货单转换" && type !== "暂扣海外仓出货单转换" && type !== "退运单出货单转换") return rows;
     const groups = new Map();
     rows.forEach((r) => {
       const k = r["运单号"];
@@ -68,7 +68,7 @@
       if (members.length < 2) return;
       members.forEach((r, i) => {
         const base = r["运单号"];
-        if (type === "拦截出货单转换") {
+        if (type === "拦截出货单转换" || type === "暂扣海外仓出货单转换") {
           r["运单号"] = base + "-" + letterSeq(i);
         } else {
           // base 形如 "FBA19F4VFHJ4-00BR"，在 -00BR 前插入序号
