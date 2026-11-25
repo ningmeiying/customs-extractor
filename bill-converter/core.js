@@ -215,7 +215,7 @@
         index.set(key, cab);
         cabinets.push(cab);
       }
-      cab.items.push({ waybill: a[3] || "", pieces: a[4] || "" });
+      cab.items.push({ waybill: a[3] || "", pieces: a[4] || "", channel: a[1] || "" });
     });
 
     let sumFee = 0;
@@ -223,10 +223,16 @@
       const waybills = cab.items.map((x) => x.waybill).filter(Boolean);
       const merged = waybills.join(",");
       const ticketCount = cab.items.length;
-      let fee = 100 + 50 * Math.max(0, ticketCount - 1);
-      if (fee > 500) fee = 500;
-      sumFee += fee;
-      const feeText = fee + "USD";
+      const isA6 = cab.items.some((x) => x.channel.indexOf("A6全美直送专线") >= 0);
+      let feeText;
+      if (isA6) {
+        feeText = "A6拦截费请单询";
+      } else {
+        let fee = 100 + 50 * Math.max(0, ticketCount - 1);
+        if (fee > 500) fee = 500;
+        sumFee += fee;
+        feeText = fee + "USD";
+      }
 
       let totalPieces = 0;
       let hasPiece = false;
@@ -249,7 +255,9 @@
       return { "运单号": merged, "拦截费用": feeText, "拦截指令": instruction };
     });
 
-    out.push({ "运单号": "合计", "拦截费用": sumFee + "USD", "拦截指令": "", "isTotal": true });
+    const allA6 = cabinets.length > 0 && cabinets.every((cab) => cab.items.some((x) => x.channel.indexOf("A6全美直送专线") >= 0));
+    const totalFeeText = allA6 ? "A6拦截费请单询" : sumFee + "USD";
+    out.push({ "运单号": "合计", "拦截费用": totalFeeText, "拦截指令": "", "isTotal": true });
     return out;
   }
 
